@@ -1,8 +1,12 @@
 # Roommate Helper Architecture
 
-## Purpose
+## Product concept: Roomie Relay
 
-Roommate Helper is a web app for a household to coordinate chores and shared shopping lists. The MVP lets members create or join a household, assign and complete chores, and add, claim, and mark shopping items as purchased.
+Roomie Relay is an *in-the-moment household handoff* app for student roommates. Instead of another static chore board, it turns the two recurring moments of apartment friction—"someone needs to do this" and "we are out of this"—into small, visible requests that are easy to accept, complete, and credit.
+
+The MVP lets a member create a **relay** (a chore or shopping need), ask the house for help, and see a fair, low-pressure handoff: **Request → claimed → proof/completed → shared credit**. A concise home screen answers three questions immediately: *what needs attention today, who has it, and is the house sharing the load fairly?*
+
+See [PRODUCT_DESIGN.md](PRODUCT_DESIGN.md) for the hackathon-specific product, visual, and demo design.
 
 ## Recommended stack
 
@@ -50,9 +54,9 @@ For a hackathon build, Supabase is a strong option because it supplies Postgres,
 | Owner | Area | Main deliverables | Depends on |
 | --- | --- | --- | --- |
 | 1 | App shell and authentication | Sign in/out, create/join household flow, navigation, current-user state | Data schema for `users`, `households`, and `household_members` |
-| 2 | Chores | Chore list, create/edit/delete, assignee selection, due dates, completion state | Household member selector and chore API/table |
-| 3 | Shopping | Shopping list, add/edit/remove items, item claimant, purchased state | Household member selector and shopping API/table |
-| 4 | Shared platform and dashboard | Database schema/migrations, API or Supabase client, authorization rules, dashboard showing household summary | Requirements from all feature owners |
+| 2 | Relays: chores | Chore relay composer, urgency/due-time labels, claim/complete flow, rotation suggestions | Household member selector and chore API/table |
+| 3 | Relays: shopping | Shopping relay composer, add/edit/remove, claim/purchased flow, recurring essentials | Household member selector and shopping API/table |
+| 4 | Shared platform and command center | Database schema/migrations, API or Supabase client, authorization rules, **Today** dashboard and Fair Share calculation | Requirements from all feature owners |
 
 Each owner should work in a separate feature branch. Team member 4 owns schema changes and publishes the data contract before feature work is integrated.
 
@@ -74,8 +78,9 @@ ShoppingItem.claimed_by_user_id -> User (optional)
 | `users` | `id`, `name`, `email`, `avatar_url`, `created_at` |
 | `households` | `id`, `name`, `invite_code`, `created_by`, `created_at` |
 | `household_members` | `household_id`, `user_id`, `role` (`owner` or `member`), `joined_at` |
-| `chores` | `id`, `household_id`, `title`, `description`, `assigned_to_user_id`, `due_date`, `status` (`open`, `done`), `created_by`, `completed_at` |
-| `shopping_items` | `id`, `household_id`, `name`, `quantity`, `notes`, `claimed_by_user_id`, `status` (`needed`, `purchased`), `created_by`, `purchased_at` |
+| `chores` | `id`, `household_id`, `title`, `description`, `assigned_to_user_id`, `due_date`, `urgency` (`today`, `this_week`, `flexible`), `status` (`open`, `claimed`, `done`), `created_by`, `completed_at` |
+| `shopping_items` | `id`, `household_id`, `name`, `quantity`, `notes`, `claimed_by_user_id`, `status` (`needed`, `claimed`, `purchased`), `is_recurring`, `created_by`, `purchased_at` |
+| `activity_events` | `id`, `household_id`, `actor_user_id`, `entity_type`, `entity_id`, `action`, `created_at` |
 
 All household-scoped records must include `household_id`. Never accept a household ID without checking that the current user belongs to that household.
 
@@ -94,6 +99,7 @@ Chores
   listChores(householdId)
   createChore(input)
   updateChore(id, changes)
+  claimChore(id, userId)
   completeChore(id)
   deleteChore(id)
 
@@ -138,7 +144,8 @@ Shopping
 
 - A user can create or join a household.
 - Household members see the same chores and shopping items.
-- A chore can be assigned, completed, and filtered by status.
+- A relay can be created, claimed, completed, and filtered by status.
 - A shopping item can be added, claimed, and marked purchased.
+- The dashboard clearly displays today's relays, recent activity, and the Fair Share signal.
 - Users cannot view or modify another household's data.
 - Empty, loading, and error states work on every main page.
