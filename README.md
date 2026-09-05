@@ -15,7 +15,7 @@ Anchor combines four systems into one deliberate workflow:
 3. **Mutual handoff** — a driver and rider must both accept before the pickup detail is revealed. Exact locations disappear when the trip ends.
 4. **Fallback mesh** — if a confirmed driver cancels, Anchor immediately finds compatible nearby offers and alerts only eligible students.
 
-See [PRODUCT_DESIGN.md](PRODUCT_DESIGN.md) for the product experience, [ARCHITECTURE.md](ARCHITECTURE.md) for the technical system, and [SAFETY_AND_TRUST.md](SAFETY_AND_TRUST.md) for the non-negotiable trust model.
+See [PRODUCT_DESIGN.md](PRODUCT_DESIGN.md) for the product experience, [IMPLEMENTATION_CONTRACT.md](IMPLEMENTATION_CONTRACT.md) for shared technical interfaces, and [SAFETY_AND_TRUST.md](SAFETY_AND_TRUST.md) for the non-negotiable trust model.
 
 ## Why this can win a Cal Poly hackathon
 
@@ -39,7 +39,7 @@ Rider posts “Downtown clinic by 7:45 AM”
   → both check in and complete the trip
 ```
 
-The complete MVP, four-person split, and demo script are in [BUILD_PLAN.md](BUILD_PLAN.md). The test and security acceptance criteria are in [TEST_PLAN.md](TEST_PLAN.md).
+The four-person ownership is in [AGENTS.md](AGENTS.md) and the role briefs in `roles/`. The test and security acceptance criteria are in [TEST_PLAN.md](TEST_PLAN.md).
 
 ## Development setup
 
@@ -51,7 +51,7 @@ copy .env.example .env.local
 npm run dev
 ```
 
-Without Supabase configuration, feature work must use the safe local fixtures in `src/lib/demo-fixtures.ts`; every route estimate and verification indicator is demo-only. Before connecting a real Supabase project, apply `supabase/migrations/20260905120000_anchor_schema.sql` and follow the security boundaries in [ARCHITECTURE.md](ARCHITECTURE.md).
+Without Supabase configuration, feature work must use the safe local fixtures in `src/lib/demo-fixtures.ts`; every route estimate and verification indicator is demo-only. Before connecting a real Supabase project, apply `supabase/migrations/20260905120000_anchor_schema.sql` and follow [SAFETY_AND_TRUST.md](SAFETY_AND_TRUST.md).
 
 Run `npm run check`, `npm test`, `npm run build`, and `npm run audit` before handing off a change.
 
@@ -64,7 +64,6 @@ Anchor is a planning and connection layer for voluntary, student-to-student carp
 | Document | Purpose |
 | --- | --- |
 | [PRODUCT_DESIGN.md](PRODUCT_DESIGN.md) | Specific user, experience, differentiators, visual direction, and 90-second pitch |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Services, data model, matching, state machines, privacy model, and API contracts |
 | [SAFETY_AND_TRUST.md](SAFETY_AND_TRUST.md) | Verification, consent, location minimization, reporting, and MVP safety limits |
-| [BUILD_PLAN.md](BUILD_PLAN.md) | Four-person ownership, six-hour delivery plan, seeded demo data, and demo runbook |
+| [IMPLEMENTATION_CONTRACT.md](IMPLEMENTATION_CONTRACT.md) | Shared types, client commands, screens, fixtures, and integration boundaries |
 | [TEST_PLAN.md](TEST_PLAN.md) | Functional, concurrency, security, accessibility, and demo test cases |
