@@ -6,6 +6,26 @@ Anchor is a weekend-hackathon prototype for a closed, Cal Poly student-to-studen
 
 The product is not a public rideshare marketplace, transportation provider, or payment platform. The primary track remains **10 Minutes Back**: Anchor removes the time students lose restarting a failed ride search through group chats.
 
+## Team role routing
+
+Every teammate must work from the assigned branch below. At the beginning of each task, Codex must run `git branch --show-current`, read [TEAM_WORKFLOW.md](TEAM_WORKFLOW.md), then read the matching role brief and [IMPLEMENTATION_CONTRACT.md](IMPLEMENTATION_CONTRACT.md).
+
+| Branch | Owner lane | Required role brief |
+| --- | --- | --- |
+| `anchor/experience` | Product experience and visual system | [roles/01-experience.md](roles/01-experience.md) |
+| `anchor/flow` | Rider/driver trip creation and matching presentation | [roles/02-flow.md](roles/02-flow.md) |
+| `anchor/rescue` | Mutual acceptance, Rescue mode, and trust/safety experience | [roles/03-rescue.md](roles/03-rescue.md) |
+| `anchor/platform` | Project foundation, Supabase, security, realtime, and deployment | [roles/04-platform.md](roles/04-platform.md) |
+
+If the current branch does not match a table row, do not infer an owner lane. Read the shared documents and ask the human teammate which branch to use before making implementation changes.
+
+### Shared-file ownership
+
+- Only `anchor/platform` may modify `supabase/`, deployment configuration, environment templates, authentication setup, migrations, RLS policies, or the canonical shared types in `src/lib/contracts.ts`.
+- Only `anchor/experience` may establish global design tokens, `src/styles/`, the app shell, navigation, or reusable primitive components.
+- All feature branches may consume shared contracts but may not mutate an owned file to unblock themselves; record a requested contract change in their handoff instead.
+- Every PR must state its branch, files changed, commands run, unrun checks, screenshots/recording if applicable, and any mock/demo behavior.
+
 ## Product rules
 
 - Drivers and riders must be verified Cal Poly students in the same active pilot community.
