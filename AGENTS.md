@@ -8,7 +8,7 @@ The product is not a public rideshare marketplace, transportation provider, or p
 
 ## Team role routing
 
-Every teammate must work from the assigned branch below. At the beginning of each task, Codex must run `git branch --show-current`, read [TEAM_WORKFLOW.md](TEAM_WORKFLOW.md), then read the matching role brief and [IMPLEMENTATION_CONTRACT.md](IMPLEMENTATION_CONTRACT.md).
+Every teammate must work from the assigned branch below. At the beginning of each task, run `git branch --show-current`, read the matching role brief, and read [IMPLEMENTATION_CONTRACT.md](IMPLEMENTATION_CONTRACT.md).
 
 | Branch | Owner lane | Required role brief |
 | --- | --- | --- |
