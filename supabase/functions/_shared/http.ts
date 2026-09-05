@@ -5,6 +5,14 @@ export const allowedLandmarks = [
   "Airport terminal public pickup"
 ] as const;
 
+export const allowedLandmarksByPickupZone: Readonly<Record<string, readonly string[]>> = {
+  "north-campus": ["North Campus Library entrance"],
+  "campus-core": ["Campus Core transit stop"],
+  downtown: ["Downtown transit plaza"],
+  "public-transit-hub": ["Campus Core transit stop", "Downtown transit plaza"],
+  "airport-terminal": ["Airport terminal public pickup"]
+};
+
 export function corsHeaders(request: Request): HeadersInit {
   const origin = request.headers.get("origin");
   const configuredOrigin = Deno.env.get("APP_ORIGIN") || "http://localhost:5173";
@@ -29,9 +37,4 @@ export function rejectUnexpectedOrigin(request: Request): Response | null {
 
 export function json(request: Request, body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: corsHeaders(request) });
-}
-
-export function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message.replace(/^\w+:\s*/, "");
-  return "The request could not be completed.";
 }

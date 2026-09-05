@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { encryptPickupDetail } from "../_shared/crypto.ts";
-import { allowedLandmarks, corsHeaders, errorMessage, json, rejectUnexpectedOrigin } from "../_shared/http.ts";
+import { allowedLandmarks, allowedLandmarksByPickupZone, corsHeaders, json, rejectUnexpectedOrigin } from "../_shared/http.ts";
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request) });
@@ -21,11 +21,33 @@ Deno.serve(async (request) => {
     if (!body.matchId || !allowedLandmarks.includes(body.publicLandmark as typeof allowedLandmarks[number])) {
       return json(request, { error: "Choose an approved public pickup landmark." }, 400);
     }
+
+    // The user-scoped client enforces RLS: only a match participant can read this match,
+    // and only the rider's request can be read here. The RPC still enforces that rider
+    // ownership before it changes state.
+    const { data: match, error: matchError } = await supabase
+      .from("matches")
+      .select("id, request_id, state")
+      .eq("id", body.matchId)
+      .maybeSingle();
+    if (matchError || !match || match.state !== "driver_offered") {
+      return json(request, { error: "That ride can no longer be confirmed. Please refresh and try again." }, 409);
+    }
+    const { data: anchorRequest, error: requestError } = await supabase
+      .from("anchor_requests")
+      .select("pickup_zone")
+      .eq("id", match.request_id)
+      .maybeSingle();
+    const approvedForZone = anchorRequest && allowedLandmarksByPickupZone[anchorRequest.pickup_zone]?.includes(body.publicLandmark);
+    if (requestError || !approvedForZone) {
+      return json(request, { error: "Choose an approved public pickup landmark for this pickup zone." }, 400);
+    }
+
     const { data, error } = await supabase.rpc("accept_match", {
       target_match_id: body.matchId,
       encrypted_pickup_detail: await encryptPickupDetail(body.publicLandmark)
     });
-    if (error) return json(request, { error: errorMessage(error) }, 409);
+    if (error) return json(request, { error: "That ride can no longer be confirmed. Please refresh and try again." }, 409);
     return json(request, { match: data });
   } catch (error) {
     console.error("confirm-match failed", error);

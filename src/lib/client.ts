@@ -51,6 +51,7 @@ function isZone(value: string): value is ZoneId {
 export class DemoAnchorClient implements AnchorClient {
   private actorId: StudentId = JORDAN_ID;
   private readonly listeners = new Set<() => void>();
+  private readonly blockedPairs = new Set<string>();
   private readonly state: DemoState = {
     students: clone(demoStudents),
     offers: clone(demoOffers),
@@ -113,7 +114,7 @@ export class DemoAnchorClient implements AnchorClient {
     const request = this.getRequest(requestId);
     if (request.riderId !== this.actorId) throw new AnchorCommandError("UNAUTHORIZED", "Only the rider can view their candidates.");
     return clone(
-      this.state.matches.filter((match) => match.requestId === requestId && match.state === "candidate" && this.offerIsEligible(match.offerId))
+      this.state.matches.filter((match) => match.requestId === requestId && match.state === "candidate" && this.matchIsEligible(match))
     );
   }
 
@@ -122,7 +123,7 @@ export class DemoAnchorClient implements AnchorClient {
     const offer = this.getOffer(match.offerId);
     if (offer.driverId !== this.actorId) throw new AnchorCommandError("UNAUTHORIZED", "Only the driver can offer this seat.");
     if (match.state !== "candidate") throw new AnchorCommandError("INVALID_STATE", "This candidate can no longer receive an offer.");
-    if (!this.offerIsEligible(offer.id)) throw new AnchorCommandError("NO_SEAT", "This route no longer has an eligible seat.");
+    if (!this.matchIsEligible(match)) throw new AnchorCommandError("NO_SEAT", "This route no longer has an eligible seat.");
     match.state = "driver_offered";
     this.addEvent(match.id, "driver_offered");
     this.notify();
@@ -140,6 +141,14 @@ export class DemoAnchorClient implements AnchorClient {
     if (offer.seatsOpen === 0) offer.status = "full";
     match.state = "confirmed";
     request.status = "confirmed";
+    if (!this.state.pickupReveals.some((reveal) => reveal.matchId === match.id)) {
+      this.state.pickupReveals.push({
+        matchId: match.id,
+        publicLandmark: "North Campus Library entrance",
+        visibleAfter: isoNow(),
+        expiresAt: fixtureExpiry
+      });
+    }
     this.addEvent(match.id, "rider_accepted");
     this.notify();
     return clone(match);
@@ -162,16 +171,25 @@ export class DemoAnchorClient implements AnchorClient {
     if (match.state !== "confirmed" && match.state !== "in_progress") {
       throw new AnchorCommandError("INVALID_STATE", "Only an active ride can be cancelled.");
     }
-    match.state = "cancelled";
     const request = this.getRequest(match.requestId);
-    request.status = "rescue_pending";
     const cancelledOffer = this.getOffer(match.offerId);
-    cancelledOffer.status = "cancelled";
+    const driverCancelled = cancelledOffer.driverId === this.actorId;
+    const previousState = match.state;
+    const canRescue = driverCancelled && previousState === "confirmed";
+    match.state = "cancelled";
+    if (driverCancelled) {
+      cancelledOffer.status = "cancelled";
+    } else if (previousState === "confirmed") {
+      cancelledOffer.seatsOpen += 1;
+      if (cancelledOffer.status === "full") cancelledOffer.status = "active";
+    }
     this.addEvent(match.id, "cancelled");
-    const rescueCandidates = this.state.matches.filter(
-      (candidate) => candidate.requestId === match.requestId && candidate.id !== match.id && candidate.state === "candidate" && this.offerIsEligible(candidate.offerId)
-    );
-    request.status = rescueCandidates.length ? "matched" : "no_match";
+    const rescueCandidates = canRescue
+      ? this.state.matches.filter(
+        (candidate) => candidate.requestId === match.requestId && candidate.id !== match.id && candidate.state === "candidate" && this.matchIsEligible(candidate)
+      )
+      : [];
+    request.status = canRescue ? (rescueCandidates.length ? "matched" : "no_match") : "cancelled";
     this.notify();
     return { match: clone(match), rescueCandidates: clone(rescueCandidates), rescueStatus: rescueCandidates.length ? "rematched" : "no_match" };
   }
@@ -202,13 +220,17 @@ export class DemoAnchorClient implements AnchorClient {
     if (!this.isParticipant(match)) throw new AnchorCommandError("UNAUTHORIZED", "Only match participants can view pickup details.");
     if (match.state !== "confirmed" && match.state !== "in_progress") return null;
     const reveal = this.state.pickupReveals.find((item) => item.matchId === matchId);
-    if (!reveal || new Date(reveal.expiresAt) <= new Date()) return null;
+    if (!reveal || new Date(reveal.visibleAfter) > new Date() || new Date(reveal.expiresAt) <= new Date()) return null;
     return clone(reveal);
   }
 
   async createSafetyReport(matchId: MatchId, _category: SafetyCategory): Promise<ReportReceipt> {
     const match = this.getMatch(matchId);
     if (!this.isParticipant(match)) throw new AnchorCommandError("UNAUTHORIZED", "Only a participant can report a match.");
+    const offer = this.getOffer(match.offerId);
+    const request = this.getRequest(match.requestId);
+    const subjectId = offer.driverId === this.actorId ? request.riderId : offer.driverId;
+    this.blockedPairs.add(this.pairKey(this.actorId, subjectId));
     this.addEvent(match.id, "reported");
     this.notify();
     return { id: `report-${crypto.randomUUID()}` as ReportReceipt["id"], createdAt: isoNow() };
@@ -235,6 +257,16 @@ export class DemoAnchorClient implements AnchorClient {
   private offerIsEligible(offerId: RouteOffer["id"]): boolean {
     const offer = this.getOffer(offerId);
     return offer.status === "active" && offer.seatsOpen > 0;
+  }
+
+  private matchIsEligible(match: Match): boolean {
+    const offer = this.getOffer(match.offerId);
+    const request = this.getRequest(match.requestId);
+    return this.offerIsEligible(offer.id) && !this.blockedPairs.has(this.pairKey(offer.driverId, request.riderId));
+  }
+
+  private pairKey(first: StudentId, second: StudentId): string {
+    return [first, second].sort().join(":");
   }
 
   private isParticipant(match: Match): boolean {

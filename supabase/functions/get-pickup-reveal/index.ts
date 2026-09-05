@@ -31,6 +31,7 @@ Deno.serve(async (request) => {
       .from("pickup_reveals")
       .select("encrypted_detail, visible_after, expires_at")
       .eq("match_id", match.id)
+      .lte("visible_after", new Date().toISOString())
       .gt("expires_at", new Date().toISOString())
       .maybeSingle();
     if (revealError || !reveal) return json(request, { pickupReveal: null });

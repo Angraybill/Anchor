@@ -71,4 +71,75 @@ describe("DemoAnchorClient", () => {
 
     await expect(client.offerSeat(demoIds.MAYA_MATCH_ID)).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
+
+  it("does not launch Rescue mode when the rider, rather than the driver, cancels", async () => {
+    const client = new DemoAnchorClient();
+    client.setDemoActor(MAYA_ID);
+    await client.offerSeat(demoIds.MAYA_MATCH_ID);
+    client.setDemoActor(JORDAN_ID);
+    await client.acceptRide(demoIds.MAYA_MATCH_ID);
+
+    const cancellation = await client.cancelMatch(demoIds.MAYA_MATCH_ID, "schedule_change");
+
+    expect(cancellation.match.state).toBe("cancelled");
+    expect(cancellation.rescueStatus).toBe("no_match");
+    expect(cancellation.rescueCandidates).toEqual([]);
+    await expect(client.getPickupReveal(demoIds.MAYA_MATCH_ID)).resolves.toBeNull();
+  });
+
+  it("prevents non-owners from enumerating another rider's candidates", async () => {
+    const client = new DemoAnchorClient();
+    client.setDemoActor(MAYA_ID);
+
+    await expect(client.listCandidates(demoIds.JORDAN_REQUEST_ID)).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
+  it("does not disclose a confirmed pickup landmark to a non-participant", async () => {
+    const client = new DemoAnchorClient();
+    client.setDemoActor(MAYA_ID);
+    await client.offerSeat(demoIds.MAYA_MATCH_ID);
+    client.setDemoActor(JORDAN_ID);
+    await client.acceptRide(demoIds.MAYA_MATCH_ID);
+    client.setDemoActor(SAM_ID);
+
+    await expect(client.getPickupReveal(demoIds.MAYA_MATCH_ID)).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
+  it("rejects a stale acceptance after a candidate has been declined", async () => {
+    const client = new DemoAnchorClient();
+    client.setDemoActor(MAYA_ID);
+    await client.offerSeat(demoIds.MAYA_MATCH_ID);
+    await client.declineMatch(demoIds.MAYA_MATCH_ID);
+    client.setDemoActor(JORDAN_ID);
+
+    await expect(client.acceptRide(demoIds.MAYA_MATCH_ID)).rejects.toMatchObject({ code: "INVALID_STATE" });
+  });
+
+  it("derives offer ownership from the session and rejects invalid seat counts", async () => {
+    const client = new DemoAnchorClient();
+    client.setDemoActor(SAM_ID);
+
+    await expect(client.createRouteOffer({
+      originZone: "campus-core",
+      destinationZone: "downtown",
+      departureStart: "2026-09-06T07:00:00-07:00",
+      departureEnd: "2026-09-06T07:10:00-07:00",
+      seatsOpen: 0,
+      maxDetourMinutes: 5,
+      preferenceTags: []
+    })).rejects.toMatchObject({ code: "VALIDATION" });
+
+    const offer = await client.createRouteOffer({
+      originZone: "campus-core",
+      destinationZone: "downtown",
+      departureStart: "2026-09-06T07:00:00-07:00",
+      departureEnd: "2026-09-06T07:10:00-07:00",
+      seatsOpen: 1,
+      maxDetourMinutes: 5,
+      preferenceTags: []
+    });
+
+    expect(offer.driverId).toBe(SAM_ID);
+    expect(offer.communityId).toBe(demoIds.DEMO_COMMUNITY_ID);
+  });
 });

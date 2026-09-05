@@ -13,6 +13,12 @@ audit         production dependency vulnerability scan
 
 No implementation is considered ready until those commands pass and the two-browser demo is rehearsed.
 
+## Automated platform coverage
+
+`src/lib/client.test.ts` is the executable test suite for the current prototype. It covers fixture candidate filtering, driver-then-rider mutual acceptance, final-seat contention, driver cancellation into Rescue mode, rider cancellation without Rescue mode, stale acceptance rejection, server-derived offer ownership, input validation, candidate authorization, and pickup-reveal privacy. Run it with `npm test`.
+
+The database migration and Edge Functions require a connected Supabase project for integration testing. The deployment checks to run there are listed in [SECURITY_REVIEW.md](SECURITY_REVIEW.md).
+
 ## Functional cases
 
 | ID | Scenario | Expected result |

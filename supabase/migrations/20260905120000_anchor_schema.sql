@@ -144,8 +144,10 @@ as $$
   select exists (
     select 1
     from public.community_memberships membership
+    join public.communities community on community.id = membership.community_id
     where membership.community_id = target_community
       and membership.student_id = public.current_student_id()
+      and community.is_active
   )
 $$;
 
@@ -172,16 +174,13 @@ create policy "members view coarse active offers" on public.route_offers
   for select using (public.is_active_member(community_id));
 create policy "verified drivers create their own offer" on public.route_offers
   for insert with check (driver_id = public.current_student_id() and public.is_active_member(community_id));
-create policy "drivers manage their own offers" on public.route_offers
-  for update using (driver_id = public.current_student_id()) with check (driver_id = public.current_student_id());
+-- No direct client update policy: capacity, availability, and status changes require a server command.
 
 create policy "riders view their own requests" on public.anchor_requests
   for select using (rider_id = public.current_student_id());
 create policy "verified riders create their own request" on public.anchor_requests
   for insert with check (rider_id = public.current_student_id() and public.is_active_member(community_id));
-create policy "riders manage their own open request" on public.anchor_requests
-  for update using (rider_id = public.current_student_id() and status in ('draft', 'open', 'matched', 'rescue_pending'))
-  with check (rider_id = public.current_student_id());
+-- No direct client update policy: request state changes require a server command.
 
 create policy "participants view their match" on public.matches
   for select using (
@@ -217,7 +216,14 @@ declare
 begin
   select * into target from public.matches where id = target_match_id for update;
   if target.id is null then raise exception 'MATCH_NOT_FOUND'; end if;
-  if not exists (select 1 from public.route_offers where id = target.offer_id and driver_id = actor and status = 'active' and seats_open > 0) then
+  if not exists (
+    select 1 from public.route_offers
+    where id = target.offer_id
+      and driver_id = actor
+      and status = 'active'
+      and seats_open > 0
+      and public.is_active_member(community_id)
+  ) then
     raise exception 'UNAUTHORIZED_OR_NO_SEAT';
   end if;
   if target.state <> 'candidate' or target.expires_at <= now() then raise exception 'MATCH_NOT_OFFERABLE'; end if;
@@ -240,7 +246,12 @@ declare
 begin
   select * into target from public.matches where id = target_match_id for update;
   if target.id is null then raise exception 'MATCH_NOT_FOUND'; end if;
-  if not exists (select 1 from public.anchor_requests where id = target.request_id and rider_id = actor) then raise exception 'UNAUTHORIZED'; end if;
+  if not exists (
+    select 1 from public.anchor_requests
+    where id = target.request_id
+      and rider_id = actor
+      and public.is_active_member(community_id)
+  ) then raise exception 'UNAUTHORIZED_OR_INACTIVE'; end if;
   if target.state <> 'driver_offered' or target.expires_at <= now() then raise exception 'MATCH_NOT_ACCEPTABLE'; end if;
   select * into target_offer from public.route_offers where id = target.offer_id for update;
   if target_offer.status <> 'active' or target_offer.seats_open <= 0 then raise exception 'NO_SEAT'; end if;
@@ -371,6 +382,12 @@ $$;
 
 revoke all on function public.current_student_id() from public;
 revoke all on function public.is_active_member(uuid) from public;
+revoke all on function public.offer_seat(uuid) from public;
+revoke all on function public.accept_match(uuid, bytea) from public;
+revoke all on function public.cancel_match(uuid) from public;
+revoke all on function public.check_in_match(uuid) from public;
+revoke all on function public.complete_match(uuid) from public;
+revoke all on function public.create_safety_report(uuid, text) from public;
 grant execute on function public.current_student_id() to authenticated;
 grant execute on function public.is_active_member(uuid) to authenticated;
 grant execute on function public.offer_seat(uuid) to authenticated;
