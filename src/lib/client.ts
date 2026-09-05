@@ -161,6 +161,7 @@ export class DemoAnchorClient implements AnchorClient {
       throw new AnchorCommandError("INVALID_STATE", "This match can no longer be declined.");
     }
     match.state = "declined";
+    this.addEvent(match.id, "declined");
     this.notify();
     return clone(match);
   }

@@ -81,7 +81,7 @@ export type MatchEvent = {
   id: string;
   matchId: MatchId;
   actorId: StudentId;
-  type: "driver_offered" | "rider_accepted" | "cancelled" | "checked_in" | "completed" | "reported";
+  type: "driver_offered" | "rider_accepted" | "declined" | "cancelled" | "checked_in" | "completed" | "reported";
   createdAt: string;
 };
 

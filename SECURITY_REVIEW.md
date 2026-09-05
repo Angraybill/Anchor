@@ -25,6 +25,9 @@ Scope: the TypeScript demo client, Supabase migration, and pickup-reveal Edge Fu
 | SEC-05 | Drivers and riders had broad direct-update policies that could bypass the command model and alter capacity or request state. | Removed client update policies for offers and requests. Future edits, pauses, and cancellations must use authenticated server commands with explicit state checks. |
 | SEC-06 | PostgreSQL functions are executable by `PUBLIC` unless explicitly revoked. | Revoked `PUBLIC` execution on every state-changing function, then granted execution only to `authenticated`. |
 | SEC-07 | An existing match could otherwise be offered or accepted after the pilot community was deactivated. | Offer and acceptance commands now require the acting student to remain an active member of an active community. |
+| SEC-08 | Direct Data API inserts could bypass server-side validation, and a rider could accept a second stale offer after confirmation. | Replaced direct offer/request inserts with authenticated commands; `accept_match` locks the request and permits only one active confirmation. |
+| SEC-09 | Realtime work was unspecified and could have exposed broad table events. | Added private `anchor:match:<uuid>` broadcasts with Realtime RLS that permits only the rider or driver. No pickup-reveal row is broadcast. |
+| SEC-10 | Edge endpoints accepted unbounded/non-JSON bodies and could return cacheable sensitive responses. | Added strict JSON/UUID validation, a small body limit, fail-closed CORS preflight, and no-store/security response headers. |
 
 ## Automated tests completed
 
@@ -35,7 +38,8 @@ Run `npm test` for the current executable suite. It exercises:
 - simultaneous final-seat acceptance (one succeeds, one conflicts);
 - pickup privacy for a non-participant and after a cancelled handoff;
 - driver cancellation entering Rescue while rider cancellation does not;
-- unauthorized offers, stale acceptance, input validation, and server-derived offer ownership.
+- unauthorized offers, stale acceptance, input validation, and server-derived offer ownership;
+- private UUID-only Realtime topic construction and rejection of service-role browser configuration.
 
 ## Required Supabase integration checks
 

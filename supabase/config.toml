@@ -1,0 +1,5 @@
+[functions.confirm-match]
+verify_jwt = true
+
+[functions.get-pickup-reveal]
+verify_jwt = true

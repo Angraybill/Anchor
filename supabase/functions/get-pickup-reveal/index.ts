@@ -1,18 +1,18 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decryptPickupDetail } from "../_shared/crypto.ts";
-import { corsHeaders, json, rejectUnexpectedOrigin } from "../_shared/http.ts";
+import { corsHeaders, HttpInputError, isUuid, json, readJsonBody, rejectUnexpectedOrigin } from "../_shared/http.ts";
 
 Deno.serve(async (request) => {
-  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request) });
   const rejectedOrigin = rejectUnexpectedOrigin(request);
   if (rejectedOrigin) return rejectedOrigin;
+  if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request) });
   if (request.method !== "POST") return json(request, { error: "Method not allowed." }, 405);
 
   try {
     const authorization = request.headers.get("Authorization");
-    if (!authorization) return json(request, { error: "Sign in to continue." }, 401);
-    const body = await request.json() as { matchId?: string };
-    if (!body.matchId) return json(request, { error: "A match is required." }, 400);
+    if (!authorization || !/^Bearer\s+\S+$/i.test(authorization)) return json(request, { error: "Sign in to continue." }, 401);
+    const body = await readJsonBody<{ matchId?: string }>(request);
+    if (!isUuid(body.matchId)) return json(request, { error: "A valid match is required." }, 400);
 
     const userClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
       global: { headers: { Authorization: authorization } }
@@ -44,6 +44,7 @@ Deno.serve(async (request) => {
       }
     });
   } catch (error) {
+    if (error instanceof HttpInputError) return json(request, { error: error.message }, 400);
     console.error("get-pickup-reveal failed", error);
     return json(request, { error: "Pickup details are unavailable right now." }, 500);
   }
