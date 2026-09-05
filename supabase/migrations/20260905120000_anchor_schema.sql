@@ -203,8 +203,6 @@ create policy "students manage their own blocks" on public.student_blocks
   for all using (blocker_id = public.current_student_id()) with check (blocker_id = public.current_student_id());
 create policy "reporter creates and reads own report" on public.safety_reports
   for select using (reporter_id = public.current_student_id());
-create policy "reporter creates report" on public.safety_reports
-  for insert with check (reporter_id = public.current_student_id());
 
 -- Match transitions are server commands. Clients do not have insert/update policies on matches, events, or pickup reveals.
 create or replace function public.offer_seat(target_match_id uuid)
@@ -229,7 +227,7 @@ begin
 end;
 $$;
 
-create or replace function public.accept_match(target_match_id uuid)
+create or replace function public.accept_match(target_match_id uuid, encrypted_pickup_detail bytea)
 returns public.matches
 language plpgsql
 security definer
@@ -253,7 +251,121 @@ begin
   update public.matches set state = 'confirmed' where id = target.id returning * into target;
   update public.anchor_requests set status = 'confirmed' where id = target.request_id;
   insert into public.match_events (match_id, actor_id, event_type) values (target.id, actor, 'rider_accepted');
+  insert into public.pickup_reveals (match_id, encrypted_detail, visible_after, expires_at)
+    values (target.id, encrypted_pickup_detail, now(), target.expires_at);
   return target;
+end;
+$$;
+
+create or replace function public.cancel_match(target_match_id uuid)
+returns public.matches
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target public.matches;
+  actor uuid := public.current_student_id();
+  match_driver uuid;
+begin
+  select * into target from public.matches where id = target_match_id for update;
+  if target.id is null then raise exception 'MATCH_NOT_FOUND'; end if;
+  if not exists (
+    select 1 from public.route_offers offer join public.anchor_requests request on request.id = target.request_id
+    where offer.id = target.offer_id and (offer.driver_id = actor or request.rider_id = actor)
+  ) then raise exception 'UNAUTHORIZED'; end if;
+  if target.state not in ('confirmed', 'in_progress') then raise exception 'MATCH_NOT_CANCELLABLE'; end if;
+  select driver_id into match_driver from public.route_offers where id = target.offer_id;
+  update public.matches set state = 'cancelled' where id = target.id returning * into target;
+  if actor = match_driver then
+    update public.route_offers set status = 'cancelled' where id = target.offer_id;
+    update public.anchor_requests
+      set status = case when arrive_by > now() then 'rescue_pending'::public.request_status else 'no_match'::public.request_status end
+      where id = target.request_id;
+  else
+    update public.route_offers
+      set seats_open = seats_open + 1,
+          status = case when status = 'full' then 'active'::public.offer_status else status end
+      where id = target.offer_id and status not in ('cancelled', 'expired');
+    update public.anchor_requests set status = 'cancelled' where id = target.request_id;
+  end if;
+  insert into public.match_events (match_id, actor_id, event_type) values (target.id, actor, 'cancelled');
+  return target;
+end;
+$$;
+
+create or replace function public.check_in_match(target_match_id uuid)
+returns public.matches
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target public.matches;
+  actor uuid := public.current_student_id();
+begin
+  select * into target from public.matches where id = target_match_id for update;
+  if target.id is null then raise exception 'MATCH_NOT_FOUND'; end if;
+  if not exists (
+    select 1 from public.route_offers offer join public.anchor_requests request on request.id = target.request_id
+    where offer.id = target.offer_id and (offer.driver_id = actor or request.rider_id = actor)
+  ) then raise exception 'UNAUTHORIZED'; end if;
+  if target.state not in ('confirmed', 'in_progress') then raise exception 'MATCH_NOT_CHECKIN_READY'; end if;
+  update public.matches set state = 'in_progress' where id = target.id returning * into target;
+  insert into public.match_events (match_id, actor_id, event_type) values (target.id, actor, 'checked_in');
+  return target;
+end;
+$$;
+
+create or replace function public.complete_match(target_match_id uuid)
+returns public.matches
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target public.matches;
+  actor uuid := public.current_student_id();
+begin
+  select * into target from public.matches where id = target_match_id for update;
+  if target.id is null then raise exception 'MATCH_NOT_FOUND'; end if;
+  if not exists (
+    select 1 from public.route_offers offer join public.anchor_requests request on request.id = target.request_id
+    where offer.id = target.offer_id and (offer.driver_id = actor or request.rider_id = actor)
+  ) then raise exception 'UNAUTHORIZED'; end if;
+  if target.state <> 'in_progress' then raise exception 'MATCH_NOT_COMPLETABLE'; end if;
+  update public.matches set state = 'completed' where id = target.id returning * into target;
+  update public.anchor_requests set status = 'completed' where id = target.request_id;
+  insert into public.match_events (match_id, actor_id, event_type) values (target.id, actor, 'completed');
+  return target;
+end;
+$$;
+
+create or replace function public.create_safety_report(target_match_id uuid, report_category text)
+returns public.safety_reports
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target public.matches;
+  actor uuid := public.current_student_id();
+  subject uuid;
+  report public.safety_reports;
+begin
+  if report_category not in ('unsafe_behavior', 'harassment', 'identity_concern', 'other') then raise exception 'INVALID_REPORT_CATEGORY'; end if;
+  select * into target from public.matches where id = target_match_id;
+  if target.id is null then raise exception 'MATCH_NOT_FOUND'; end if;
+  select case when offer.driver_id = actor then request.rider_id else offer.driver_id end into subject
+    from public.route_offers offer join public.anchor_requests request on request.id = target.request_id
+    where offer.id = target.offer_id and (offer.driver_id = actor or request.rider_id = actor);
+  if subject is null then raise exception 'UNAUTHORIZED'; end if;
+  insert into public.safety_reports (reporter_id, subject_id, match_id, category)
+    values (actor, subject, target.id, report_category)
+    returning * into report;
+  insert into public.student_blocks (blocker_id, blocked_id) values (actor, subject) on conflict do nothing;
+  insert into public.match_events (match_id, actor_id, event_type) values (target.id, actor, 'reported');
+  return report;
 end;
 $$;
 
@@ -262,4 +374,8 @@ revoke all on function public.is_active_member(uuid) from public;
 grant execute on function public.current_student_id() to authenticated;
 grant execute on function public.is_active_member(uuid) to authenticated;
 grant execute on function public.offer_seat(uuid) to authenticated;
-grant execute on function public.accept_match(uuid) to authenticated;
+grant execute on function public.accept_match(uuid, bytea) to authenticated;
+grant execute on function public.cancel_match(uuid) to authenticated;
+grant execute on function public.check_in_match(uuid) to authenticated;
+grant execute on function public.complete_match(uuid) to authenticated;
+grant execute on function public.create_safety_report(uuid, text) to authenticated;
