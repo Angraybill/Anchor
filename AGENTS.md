@@ -1,71 +1,67 @@
-# Anchor Project Guidelines
+# Agent Guidance
 
-## Product overview
+## Product basics
 
-Anchor is a weekend-hackathon prototype for a closed, Cal Poly student-to-student ride network. It coordinates voluntary carpool handoffs for fixed-time commitments when a student does not have a car or a ride falls through.
+The product name is not decided. Use neutral language such as “the app” in UI copy and documentation until the team chooses a name.
 
-The product is not a public rideshare marketplace, transportation provider, or payment platform. The primary track remains **10 Minutes Back**: Anchor removes the time students lose restarting a failed ride search through group chats.
+The app helps Cal Poly students coordinate voluntary rides to fixed-time commitments when they do not have a car or an existing ride falls through.
 
-## Team role routing
+The core flow is:
 
-Every teammate must work from the assigned branch below. At the beginning of each task, run `git branch --show-current`, read the matching role brief, and read [IMPLEMENTATION_CONTRACT.md](IMPLEMENTATION_CONTRACT.md).
+1. A rider creates a trip with pickup zone, destination zone, and arrival deadline.
+2. A driver offers an existing route with an open seat.
+3. The rider and driver both accept.
+4. A public pickup landmark is revealed.
+5. If the driver cancels, the rider can receive a compatible replacement offer.
+6. The rider and driver check in and complete the trip.
 
-| Branch | Owner lane | Required role brief |
-| --- | --- | --- |
-| `anchor/experience` | Product experience and visual system | [roles/01-experience.md](roles/01-experience.md) |
-| `anchor/flow` | Rider/driver trip creation and matching presentation | [roles/02-flow.md](roles/02-flow.md) |
-| `anchor/rescue` | Mutual acceptance, Rescue mode, and trust/safety experience | [roles/03-rescue.md](roles/03-rescue.md) |
-| `anchor/platform` | Project foundation, Supabase, security, realtime, and deployment | [roles/04-platform.md](roles/04-platform.md) |
+Use coarse zones before acceptance. Never expose home addresses, exact pickup details, phone numbers, or live location to candidates.
 
-If the current branch does not match a table row, do not infer an owner lane. Read the shared documents and ask the human teammate which branch to use before making implementation changes.
+## Four-person work
 
-### Shared-file ownership
+### Person 1 — Experience
 
-- Only `anchor/platform` may modify `supabase/`, deployment configuration, environment templates, authentication setup, migrations, RLS policies, or the canonical shared types in `src/lib/contracts.ts`.
-- Only `anchor/experience` may establish global design tokens, `src/styles/`, the app shell, navigation, or reusable primitive components.
-- All feature branches may consume shared contracts but may not mutate an owned file to unblock themselves; record a requested contract change in their handoff instead.
-- Every PR must state its branch, files changed, commands run, unrun checks, screenshots/recording if applicable, and any mock/demo behavior.
+Own the app shell, navigation, styles, responsive layout, reusable UI components, loading/empty/error states, and visual polish.
 
-## Product rules
+Build the dashboard, deadline cards, route cards, match timeline, Rescue banner, pickup card, and all major trip states.
 
-- Drivers and riders must be verified Cal Poly students in the same active pilot community.
-- Drivers offer pre-existing voluntary routes; the system never treats a student as a gig driver.
-- A match requires mutual acceptance. No user is auto-assigned a ride.
-- Requests and offers use coarse zones until mutual acceptance; exact pickup detail has a short, enforced TTL.
-- Never expose a home address, raw contact information, or live location to candidate users.
-- Cancellations launch a bounded fallback search only when the rider still has time to arrive.
-- No payments, fares, tips, ratings, open chat, continuous location tracking, background-check claims, or emergency-service claims in the MVP.
-- Mock route estimates, student verification, notifications, and moderation must be visually labeled as demo-only.
+Do not change Supabase setup, migrations, policies, authentication, shared contracts, or matching logic.
 
-## Engineering rules
+Check mobile and desktop layouts, keyboard navigation, focus states, contrast, and reduced motion.
 
-- Inspect existing project setup before adding dependencies or source files.
-- Use server-derived identity; never trust a client-submitted rider ID, driver ID, role, or seat count.
-- Use stable UUIDs for students, offers, requests, matches, events, reports, and pickup reveals.
-- Implement every match transition as an authenticated, server-side command.
-- Confirm the last-seat reservation atomically; concurrent acceptance may never overbook a vehicle.
-- Make match events append-only and keep precise pickup values out of ordinary logs/analytics.
-- Put all route provider, notification, verification, and secret credentials on the server only.
-- Enforce access with database policy as well as API checks; hiding a UI element is not authorization.
-- Handle no-match, stale candidate, declined handoff, expired offer, cancellation, route-provider failure, and report/block states deliberately.
+### Person 2 — Rider and driver flow
 
-## Verification before merge
+Own rider trip forms, driver route forms, candidate presentation, validation, fixture matching, and related tests.
 
-- Run the available test, typecheck, build, and dependency-audit commands.
-- Test the primary rider/driver mutual-acceptance flow in two sessions.
-- Test two simultaneous accept attempts for the final seat.
-- Verify exact pickup detail does not appear before confirmation or after TTL expiry.
-- Verify cancellation cannot disclose the previous driver to rescue candidates.
-- Check mobile and desktop layouts, keyboard navigation, and clear error states.
-- State unrun checks and demo-only limitations honestly in the handoff.
+Build fields for zones, arrival deadlines, departure windows, flexibility, seats, detour limits, and ride preferences. Show why a candidate fits using arrival slack and estimated detour.
 
-## Demo flow
+Reject empty or unsupported zones, past deadlines, invalid time windows, negative flexibility, and invalid seat counts. Use shared client adapters; do not write Supabase tables directly from components.
 
-1. A verified rider creates a deadline-bound Anchor trip.
-2. A verified driver offers an existing route with a spare seat.
-3. Both accept; a public pickup landmark becomes visible.
-4. The driver cancels; Anchor enters Rescue mode.
-5. A compatible new driver offers a seat before the arrival deadline.
-6. Rider and driver confirm pickup and complete the trip.
+### Person 3 — Handoff, Rescue, and trust
 
-Product name is **Anchor** unless the team explicitly adopts a different name.
+Own mutual acceptance, cancellation, Rescue mode, no-match states, check-in, completion, report/block UI, match timelines, and safety copy.
+
+Show pickup details only after both people accept. A cancellation should produce a clear Rescue state, not a generic error. Never imply that a replacement ride is guaranteed.
+
+Do not add public ratings, open chat, payments, continuous tracking, or emergency-service claims.
+
+### Person 4 — Platform and Supabase
+
+Own Supabase setup, migrations, RLS, authentication/session boundaries, seed data, Edge Functions, shared types, client adapters, realtime, command errors, event history, and deployment.
+
+Keep secrets out of the client and commit only `.env.example`. Keep match transitions server-side and authenticated. Reserve the final seat atomically so concurrent accepts cannot overbook a driver.
+
+Ensure users can access only their community’s data and that pickup details are protected before acceptance and after expiry.
+
+## Shared rules
+
+- Drivers offer routes they already plan to take; this is not gig driving.
+- A ride is never auto-assigned. Both participants must accept.
+- Verification, route estimates, notifications, and moderation are demo behavior unless connected to a real approved provider; label them honestly.
+- Keep match events auditable and do not put precise pickup values in ordinary logs.
+- Handle no-match, stale offers, declined handoffs, expired offers, cancellation, provider failure, and report/block states.
+- Preserve teammate changes and inspect existing code before changing shared files.
+
+## Before handing off
+
+Run the available typecheck, tests, build, and audit. Test the two-person acceptance flow, final-seat concurrency, pickup privacy/expiry, cancellation Rescue, mobile/desktop layouts, keyboard navigation, and error states. Report checks that were not run.
