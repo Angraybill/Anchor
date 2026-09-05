@@ -1,4 +1,4 @@
-# Roommate Helper Project Guidelines
+# Project Guidelines — Product Name TBD
 
 ## Project overview
 
