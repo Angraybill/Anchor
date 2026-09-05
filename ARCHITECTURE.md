@@ -4,7 +4,7 @@ The product has no finalized name. `LAST-Roomate-Helper` is only the repository 
 
 ## Architecture direction
 
-The current implementation is a simple responsive React + TypeScript client built with Vite and a Node.js + TypeScript + Express API. The API uses in-memory seeded data for the weekend MVP; restarting the server resets the demo household. A database, authentication, and real-time subscriptions are intentionally deferred.
+The current implementation is a simple responsive React + TypeScript client built with Vite and a Node.js + TypeScript + Express API. MongoDB stores households, users, memberships, tasks, inventory, and activity. Authentication is intentionally simplified for the weekend MVP: the landing page creates or joins a household and stores local household/user IDs.
 
 The core experience is a shared household dashboard with tasks, task handoffs, points, communal inventory, duplicate warnings, and limited reminders.
 
@@ -13,7 +13,7 @@ The core experience is a shared household dashboard with tasks, task handoffs, p
 ```text
 src/main.tsx       React application and API-backed UI
 src/styles.css     Responsive visual styles
-server/index.ts    Express routes and seeded in-memory domain state
+server/index.ts    Express routes and MongoDB persistence
 index.html         Vite entry document
 ```
 
@@ -86,9 +86,11 @@ If the implementation uses routes, internal routes may be `/dashboard`, `/tasks`
 
 ## Data and privacy
 
-For a multi-user implementation, users may read and modify only records belonging to their household. If authentication is not implemented for the weekend, use clearly labeled demo identities and do not imply production-grade account security.
+For a multi-user implementation, users may read and modify only records belonging to their household. The MVP uses household/user IDs from the browser rather than production authentication; do not imply production-grade account security.
 
 Do not store secrets in the repository or expose private household data outside the household.
+
+The server reads the complete `MONGODB_URI` from the environment. `MONGODB_USERNAME` and `MONGODB_PASSWORD` are not required when the URI already contains credentials.
 
 ## Verification
 

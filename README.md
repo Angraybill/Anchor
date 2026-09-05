@@ -28,7 +28,7 @@ npm install
 npm run dev
 ```
 
-The Vite client runs on `http://localhost:5173` and proxies API requests to the Node server on `http://localhost:3001` when the client is configured for local development. The API uses in-memory seeded data for this MVP, so restarting the server resets the demo household.
+The Vite client runs on `http://localhost:5173` and proxies API requests to the Node server on `http://localhost:3001`. The API persists households, users, memberships, tasks, inventory items, and activity in MongoDB. Set `MONGODB_URI` in a local `.env` file before starting the server. Never commit `.env`.
 
 Useful checks:
 
@@ -36,6 +36,10 @@ Useful checks:
 npm run check
 npm run build
 ```
+
+## Landing page
+
+The landing page lets a roommate create a household or join one with an invite code. After joining, the browser stores only the household and user IDs needed to load that household’s dashboard.
 
 ## Demo flow
 
