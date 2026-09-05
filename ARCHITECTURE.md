@@ -4,9 +4,20 @@ The product has no finalized name. `LAST-Roomate-Helper` is only the repository 
 
 ## Architecture direction
 
-Build a simple responsive web app for the weekend MVP. Use the repository’s existing framework and services if present; do not add a framework or backend until the existing setup is inspected. Seeded data and manual entry are acceptable for the first demo.
+The current implementation is a simple responsive React + TypeScript client built with Vite and a Node.js + TypeScript + Express API. The API uses in-memory seeded data for the weekend MVP; restarting the server resets the demo household. A database, authentication, and real-time subscriptions are intentionally deferred.
 
 The core experience is a shared household dashboard with tasks, task handoffs, points, communal inventory, duplicate warnings, and limited reminders.
+
+## Local structure
+
+```text
+src/main.tsx       React application and API-backed UI
+src/styles.css     Responsive visual styles
+server/index.ts    Express routes and seeded in-memory domain state
+index.html         Vite entry document
+```
+
+Run `npm install` followed by `npm run dev` to start both processes.
 
 ## Domain model
 

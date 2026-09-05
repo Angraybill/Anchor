@@ -19,6 +19,24 @@ The MVP supports one household and a small number of roommates. It should allow 
 
 Manual grocery entry or a limited/mock receipt flow is acceptable for the weekend MVP.
 
+## Run locally
+
+Install dependencies and start the React client and Node API together:
+
+```bash
+npm install
+npm run dev
+```
+
+The Vite client runs on `http://localhost:5173` and proxies API requests to the Node server on `http://localhost:3001` when the client is configured for local development. The API uses in-memory seeded data for this MVP, so restarting the server resets the demo household.
+
+Useful checks:
+
+```bash
+npm run check
+npm run build
+```
+
 ## Demo flow
 
 1. A roommate adds toilet paper or paper towels to the shopping list.
