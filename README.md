@@ -41,6 +41,20 @@ Rider posts “Downtown clinic by 7:45 AM”
 
 The complete MVP, four-person split, and demo script are in [BUILD_PLAN.md](BUILD_PLAN.md). The test and security acceptance criteria are in [TEST_PLAN.md](TEST_PLAN.md).
 
+## Development setup
+
+The `anchor/platform` branch provides the initial scaffold and the deterministic demo client used by every feature branch.
+
+```text
+npm install
+copy .env.example .env.local
+npm run dev
+```
+
+Without Supabase configuration, feature work must use the safe local fixtures in `src/lib/demo-fixtures.ts`; every route estimate and verification indicator is demo-only. Before connecting a real Supabase project, apply `supabase/migrations/20260905120000_anchor_schema.sql` and follow the security boundaries in [ARCHITECTURE.md](ARCHITECTURE.md).
+
+Run `npm run check`, `npm test`, `npm run build`, and `npm run audit` before handing off a change.
+
 ## Scope and safety boundary
 
 Anchor is a planning and connection layer for voluntary, student-to-student carpools. It does **not** process payment, promise transportation, perform background checks, track students continuously, guarantee arrival, or replace emergency services. For the hackathon, Cal Poly verification, vehicle/insurance eligibility, and safety reporting are clearly marked as demo flows unless integrated with an approved real provider.
