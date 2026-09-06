@@ -126,6 +126,7 @@ export default function App() {
   );
   const [refreshing, setRefreshing] = useState(false);
   const [requestingRide, setRequestingRide] = useState(false);
+  const [offeringForRequest, setOfferingForRequest] = useState<PublicRideRequest | null>(null);
   const [requestId, setRequestId] = useState("request-jordan-clinic");
   const [liveOffers, setLiveOffers] = useState<
     SupabaseDatabase["public"]["Tables"]["rides"]["Row"][]
@@ -333,8 +334,14 @@ export default function App() {
           offered: [ride, ...current.offered],
         }));
       } else await demoClient.createRouteOffer(input);
+      const requestedTrip = offeringForRequest;
+      setOfferingForRequest(null);
       setTab("find");
-      setMessage("Your ride is posted. Other students can now join it.");
+      setMessage(
+        requestedTrip
+          ? "Your offer is posted for that public request. The requester still chooses whether to join it."
+          : "Your ride is posted. Other students can now join it.",
+      );
     } catch (error) {
       setMessage(errorMessage(error, "Could not post ride:"));
     }
@@ -491,10 +498,21 @@ export default function App() {
               requests={liveMode ? publicRequests : []}
               onJoin={joinOffer}
               onRequest={() => setRequestingRide(true)}
+              onOfferToDrive={(request) => {
+                setOfferingForRequest(request);
+                setTab("plan");
+                setMessage("Set your departure time, seats, and cost share to offer this rider a trip.");
+              }}
             />
           )
         )}
-        {tab === "plan" && <OfferRide onPosted={createOffer} />}
+        {tab === "plan" && (
+          <OfferRide
+            onPosted={createOffer}
+            initialOrigin={offeringForRequest?.pickup_label}
+            initialDestination={offeringForRequest?.destination_label}
+          />
+        )}
         {tab === "profile" && (
           <Profile
             profile={displayProfile}
@@ -534,7 +552,10 @@ export default function App() {
           icon="car"
           label="Offer a ride"
           active={tab === "plan"}
-          onPress={() => setTab("plan")}
+          onPress={() => {
+            setOfferingForRequest(null);
+            setTab("plan");
+          }}
         />
         <Nav
           icon="person"
@@ -660,11 +681,13 @@ function Find({
   requests,
   onJoin,
   onRequest,
+  onOfferToDrive,
 }: {
   offers: OfferCardData[];
   requests: PublicRideRequest[];
   onJoin: (offerId: OfferId) => void;
   onRequest: () => void;
+  onOfferToDrive: (request: PublicRideRequest) => void;
 }) {
   return (
     <>
@@ -699,7 +722,7 @@ function Find({
         <Text style={styles.sectionTitle}>Student ride requests</Text>
         <Text style={styles.seeAll}>Public areas only</Text>
       </View>
-      {requests.map((request) => <PublicRequestCard key={request.id} request={request} />)}
+      {requests.map((request) => <PublicRequestCard key={request.id} request={request} onOfferToDrive={onOfferToDrive} />)}
       {requests.length === 0 && <Text style={styles.emptySectionText}>No public ride requests yet.</Text>}
     </>
   );
@@ -783,7 +806,13 @@ function RequestRide({
   );
 }
 
-function PublicRequestCard({ request }: { request: PublicRideRequest }) {
+function PublicRequestCard({
+  request,
+  onOfferToDrive,
+}: {
+  request: PublicRideRequest;
+  onOfferToDrive: (request: PublicRideRequest) => void;
+}) {
   const arrival = new Date(request.arrive_by);
   return (
     <View style={styles.matchCard}>
@@ -796,6 +825,9 @@ function PublicRequestCard({ request }: { request: PublicRideRequest }) {
       </View>
       <Text style={styles.explanation}>Needs to arrive by {arrival.toLocaleDateString([], { month: "short", day: "numeric" })} at {arrival.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text>
       <Text style={styles.requestSafety}>No home addresses or contact details are shown.</Text>
+      <Pressable style={styles.darkButtonSmall} onPress={() => onOfferToDrive(request)}>
+        <Text style={styles.darkButtonText}>Offer to drive</Text>
+      </Pressable>
     </View>
   );
 }
@@ -947,11 +979,15 @@ function MatchCard({
 
 function OfferRide({
   onPosted,
+  initialOrigin = "",
+  initialDestination = "",
 }: {
   onPosted: (input: CreateRouteOfferInput) => void | Promise<void>;
+  initialOrigin?: string;
+  initialDestination?: string;
 }) {
-  const [origin, setOrigin] = useState("");
-  const [destination, setDestination] = useState("");
+  const [origin, setOrigin] = useState(initialOrigin);
+  const [destination, setDestination] = useState(initialDestination);
   const [posting, setPosting] = useState(false);
   const [departureTime, setDepartureTime] = useState(() => {
     const time = new Date();
