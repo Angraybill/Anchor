@@ -38,27 +38,55 @@ Deno.serve(async (request) => {
         return json(request, { error: "Could not store verification code." }, 500);
       }
 
-      // Try to send via SendGrid if configured, otherwise log code for dev.
-      const sendgridKey = Deno.env.get("SENDGRID_API_KEY");
-      if (sendgridKey) {
+      // Try Postmark, then SendGrid; otherwise log code for dev.
+      const postmarkKey = Deno.env.get("POSTMARK_API_KEY");
+      if (postmarkKey) {
         try {
-          await fetch("https://api.sendgrid.com/v3/mail/send", {
+          const pmResp = await fetch("https://api.postmarkapp.com/email", {
             method: "POST",
-            headers: { Authorization: `Bearer ${sendgridKey}`, "Content-Type": "application/json" },
+            headers: {
+              "Accept": "application/json",
+              "Content-Type": "application/json",
+              "X-Postmark-Server-Token": postmarkKey,
+            },
             body: JSON.stringify({
-              personalizations: [{ to: [{ email }], subject: "Your PolyPassenger sign-in code" }],
-              from: { email: Deno.env.get("FROM_EMAIL") ?? "noreply@poly-passenger.app" },
-              content: [{ type: "text/plain", value: `Your verification code is: ${code}` }],
+              From: Deno.env.get("FROM_EMAIL") ?? "noreply@poly-passenger.app",
+              To: email,
+              Subject: "Your PolyPassenger sign-in code",
+              TextBody: `Your verification code is: ${code}`,
             }),
           });
+          const pmBody = await pmResp.text();
+          console.log("postmark send status", pmResp.status, pmBody);
         } catch (e) {
-          console.error("sendgrid send failed", e);
+          console.error("postmark send failed", e);
         }
       } else {
-        console.log("Verification code for", email, ":", code);
+        const sendgridKey = Deno.env.get("SENDGRID_API_KEY");
+        if (sendgridKey) {
+          try {
+            const sgResp = await fetch("https://api.sendgrid.com/v3/mail/send", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${sendgridKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                personalizations: [{ to: [{ email }], subject: "Your PolyPassenger sign-in code" }],
+                from: { email: Deno.env.get("FROM_EMAIL") ?? "noreply@poly-passenger.app" },
+                content: [{ type: "text/plain", value: `Your verification code is: ${code}` }],
+              }),
+            });
+            const sgBody = await sgResp.text();
+            console.log("sendgrid send status", sgResp.status, sgBody);
+          } catch (e) {
+            console.error("sendgrid send failed", e);
+          }
+        } else {
+          console.log("Verification code for", email, ":", code);
+        }
       }
 
-      return json(request, { ok: true });
+      const resp: any = { ok: true };
+      if (Deno.env.get("DEV_RETURN_CODE") === "true") resp.debug_code = code;
+      return json(request, resp);
     }
 
     if (body.action === "verify") {
