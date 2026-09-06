@@ -22,6 +22,9 @@ export type PrivateRideRequestInput = {
   arriveBy: string;
 };
 
+export type PublicRideRequest =
+  SupabaseDatabase["public"]["Tables"]["ride_requests"]["Row"];
+
 async function requireCurrentUser() {
   const client = requireSupabase();
   const { data, error } = await client.auth.getUser();
@@ -95,6 +98,17 @@ export async function createPrivateRideRequest(
     status: "open",
   });
   if (error) throw error;
+}
+
+export async function listPublicRideRequests(): Promise<PublicRideRequest[]> {
+  const { client } = await requireCurrentUser();
+  const { data, error } = await client
+    .from("ride_requests")
+    .select("*")
+    .eq("status", "open")
+    .order("arrive_by");
+  if (error) throw error;
+  return data ?? [];
 }
 
 export async function listMyRides(): Promise<MyRides> {

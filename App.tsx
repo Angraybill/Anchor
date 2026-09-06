@@ -24,9 +24,11 @@ import {
   createPrivateRideRequest,
   joinRide,
   listOpenRides,
+  listPublicRideRequests,
   listMyRides,
   postCurrentRide,
   type JoinedRide,
+  type PublicRideRequest,
 } from "./src/lib/supabase-api";
 import { supabase, type SupabaseDatabase } from "./src/lib/supabase";
 import Landing from "./src/screens/Landing";
@@ -132,6 +134,7 @@ export default function App() {
     offered: LiveRide[];
     joined: JoinedRide[];
   }>({ offered: [], joined: [] });
+  const [publicRequests, setPublicRequests] = useState<PublicRideRequest[]>([]);
   const liveMode = Boolean(supabase);
   useEffect(
     () => demoClient.subscribe(() => refresh((value) => value + 1)),
@@ -140,12 +143,14 @@ export default function App() {
   const loadLiveRides = useCallback(async () => {
     if (!supabase || !authenticated) return;
     try {
-      const [openRides, myRides] = await Promise.all([
+      const [openRides, myRides, requests] = await Promise.all([
         listOpenRides(),
         listMyRides(),
+        listPublicRideRequests(),
       ]);
       setLiveOffers(openRides);
       setLiveMyRides(myRides);
+      setPublicRequests(requests);
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Could not load rides.",
@@ -311,7 +316,8 @@ export default function App() {
       }
       setRequestingRide(false);
       setTab("find");
-      setMessage("Your private request is saved. Browse available rides below; a match is never guaranteed.");
+      if (liveMode) await loadLiveRides();
+      setMessage("Your public request is posted. Browse available rides below; a match is never guaranteed.");
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Could not post request.",
@@ -482,6 +488,7 @@ export default function App() {
           ) : (
             <Find
               offers={openOffers}
+              requests={liveMode ? publicRequests : []}
               onJoin={joinOffer}
               onRequest={() => setRequestingRide(true)}
             />
@@ -650,10 +657,12 @@ function LiveRideCard({
 
 function Find({
   offers,
+  requests,
   onJoin,
   onRequest,
 }: {
   offers: OfferCardData[];
+  requests: PublicRideRequest[];
   onJoin: (offerId: OfferId) => void;
   onRequest: () => void;
 }) {
@@ -668,7 +677,7 @@ function Find({
       <View style={styles.requestPrompt}>
         <View style={{ flex: 1 }}>
           <Text style={styles.requestPromptTitle}>Need a ride for a specific trip?</Text>
-          <Text style={styles.requestPromptBody}>Save a private request, then review available offers.</Text>
+          <Text style={styles.requestPromptBody}>Post a public request using a broad public landmark.</Text>
         </View>
         <Pressable style={styles.requestPromptButton} onPress={onRequest}>
           <Text style={styles.requestPromptButtonText}>Request a ride</Text>
@@ -686,6 +695,12 @@ function Find({
           </Text>
         </View>
       )}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Student ride requests</Text>
+        <Text style={styles.seeAll}>Public areas only</Text>
+      </View>
+      {requests.map((request) => <PublicRequestCard key={request.id} request={request} />)}
+      {requests.length === 0 && <Text style={styles.emptySectionText}>No public ride requests yet.</Text>}
     </>
   );
 }
@@ -722,10 +737,10 @@ function RequestRide({
     <>
       <View style={styles.pageHeading}>
         <Text style={styles.pageTitle}>Request a ride</Text>
-        <Text style={styles.subtitle}>This request is private to your account. It is not visible as a public post.</Text>
+        <Text style={styles.subtitle}>This post is visible to signed-in Cal Poly students. Use a public landmark or broad area only.</Text>
       </View>
       <View style={styles.formCard}>
-        <Text style={styles.fieldLabel}>Broad starting area</Text>
+        <Text style={styles.fieldLabel}>Public pickup landmark or broad area</Text>
         <TextInput
           value={pickupLocation}
           onChangeText={setPickupLocation}
@@ -750,7 +765,7 @@ function RequestRide({
             onChange={(_, selectedDate) => selectedDate && setArriveBy(selectedDate)}
           />
         </View>
-        <Text style={styles.helper}>Use a broad area, not a home address. A ride is never guaranteed or automatically assigned.</Text>
+        <Text style={styles.helper}>This will be public to signed-in students. Do not enter a home address, phone number, or live location. A ride is never guaranteed or automatically assigned.</Text>
         <View style={styles.cardActions}>
           <Pressable style={styles.outlineButton} onPress={onCancel}>
             <Text style={styles.outlineText}>Back</Text>
@@ -760,11 +775,28 @@ function RequestRide({
             disabled={!canSubmit || saving}
             onPress={() => void submit()}
           >
-            <Text style={styles.darkButtonText}>{saving ? "Saving…" : "Save private request"}</Text>
+            <Text style={styles.darkButtonText}>{saving ? "Posting…" : "Post public request"}</Text>
           </Pressable>
         </View>
       </View>
     </>
+  );
+}
+
+function PublicRequestCard({ request }: { request: PublicRideRequest }) {
+  const arrival = new Date(request.arrive_by);
+  return (
+    <View style={styles.matchCard}>
+      <Text style={styles.cardKicker}>RIDE REQUEST • PUBLIC LANDMARK</Text>
+      <Text style={styles.cardTitle}>A Cal Poly student needs a ride to {request.destination_label}</Text>
+      <View style={styles.routeLine}>
+        <Text style={styles.routeText}>{request.pickup_label}</Text>
+        <Ionicons name="arrow-forward" size={15} color="#8A8C88" />
+        <Text style={styles.routeText}>{request.destination_label}</Text>
+      </View>
+      <Text style={styles.explanation}>Needs to arrive by {arrival.toLocaleDateString([], { month: "short", day: "numeric" })} at {arrival.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text>
+      <Text style={styles.requestSafety}>No home addresses or contact details are shown.</Text>
+    </View>
   );
 }
 
