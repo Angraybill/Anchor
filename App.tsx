@@ -26,6 +26,7 @@ import {
   postCurrentRide,
 } from "./src/lib/supabase-api";
 import { supabase, type SupabaseDatabase } from "./src/lib/supabase";
+import Landing from "./src/screens/Landing";
 
 type Tab = "home" | "find" | "plan" | "profile";
 type OfferCardData = {
@@ -56,6 +57,7 @@ function zoneForLocation(location: string, fallback: ZoneId): ZoneId {
 }
 
 export default function App() {
+  const [authenticated, setAuthenticated] = useState(false);
   const [, refresh] = useState(0);
   const [tab, setTab] = useState<Tab>("home");
   const [message, setMessage] = useState(
@@ -231,6 +233,10 @@ export default function App() {
   }
 
   const displayName = actor.displayName;
+  if (!authenticated) {
+    return <Landing onAuthenticated={() => setAuthenticated(true)} />;
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="dark-content" />
