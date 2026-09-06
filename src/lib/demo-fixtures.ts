@@ -1,6 +1,6 @@
 import type { AnchorRequest, Match, PickupReveal, RouteOffer, Student } from "./contracts";
 
-export const DEMO_COMMUNITY_ID = "community-anchor-pilot";
+export const DEMO_COMMUNITY_ID = "community-poly-passenger";
 export const JORDAN_ID = "student-jordan" as const;
 export const MAYA_ID = "student-maya" as const;
 export const SAM_ID = "student-sam" as const;

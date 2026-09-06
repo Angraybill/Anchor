@@ -15,7 +15,7 @@ const zoneLabel: Record<ZoneId, string> = {
 export default function App() {
   const [, refresh] = useState(0);
   const [tab, setTab] = useState<Tab>("home");
-  const [message, setMessage] = useState("Your ride network is ready.");
+  const [message, setMessage] = useState("PolyPassenger is ready for your next trip.");
   useEffect(() => demoClient.subscribe(() => refresh((value) => value + 1)), []);
   const actor = demoClient.currentActor;
   const matches = useMemo(() => demoClient.snapshotMatches(requestId), [actor]);
@@ -54,7 +54,7 @@ export default function App() {
   return <SafeAreaView style={styles.safe}>
     <StatusBar barStyle="dark-content" />
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.header}><View><Text style={styles.eyebrow}>CAL POLY • RIDE NETWORK</Text><Text style={styles.title}>Hey, {actor.displayName}</Text><Text style={styles.subtitle}>Make the next commitment easier.</Text></View><View style={styles.avatar}><Text style={styles.avatarText}>{actor.displayName[0]}</Text></View></View>
+      <View style={styles.header}><View><Text style={styles.eyebrow}>POLYPASSENGER • CAL POLY</Text><Text style={styles.title}>Hey, {actor.displayName}</Text><Text style={styles.subtitle}>Make the next commitment easier.</Text></View><View style={styles.avatar}><Text style={styles.avatarText}>{actor.displayName[0]}</Text></View></View>
       <View style={styles.notice}><Ionicons name="shield-checkmark" size={18} color="#163B35" /><Text style={styles.noticeText}>{message}</Text></View>
       {tab === "home" && <Home activeMatch={activeMatch} matches={matches} onFind={() => setTab("find")} onPlan={() => setTab("plan")} onOffer={offer} onAccept={accept} onCancel={cancel} onProgress={progress} />}
       {tab === "find" && <Find matches={matches} onOffer={offer} onAccept={accept} />}
