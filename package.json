@@ -18,7 +18,7 @@
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
     "@supabase/supabase-js": "^2.49.1",
-    "expo": "~55.0.0",
+    "expo": "~57.0.0",
     "expo-font": "^55.0.8",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -26,7 +26,6 @@
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {
-    "@rollup/rollup-darwin-arm64": "^4.63.1",
     "@types/react": "~19.2.10",
     "react-refresh": "^0.14.2",
     "typescript": "^5.7.2",
