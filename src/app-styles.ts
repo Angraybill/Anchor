@@ -140,6 +140,7 @@ export const styles = StyleSheet.create({
   requestPromptButton: { backgroundColor: "#163B35", borderRadius: 14, paddingHorizontal: 11, paddingVertical: 10 },
   requestPromptButtonText: { color: "#FFF", fontSize: 11, fontWeight: "800" },
   requestSafety: { color: "#527063", fontSize: 11, fontWeight: "700", marginTop: 10 },
+  requestOfferButton: { marginTop: 14 },
   pageTitle: {
     color: "#17201E",
     fontSize: 29,

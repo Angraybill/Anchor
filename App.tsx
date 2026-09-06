@@ -825,7 +825,7 @@ function PublicRequestCard({
       </View>
       <Text style={styles.explanation}>Needs to arrive by {arrival.toLocaleDateString([], { month: "short", day: "numeric" })} at {arrival.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text>
       <Text style={styles.requestSafety}>No home addresses or contact details are shown.</Text>
-      <Pressable style={styles.darkButtonSmall} onPress={() => onOfferToDrive(request)}>
+      <Pressable style={[styles.darkButtonSmall, styles.requestOfferButton]} onPress={() => onOfferToDrive(request)}>
         <Text style={styles.darkButtonText}>Offer to drive</Text>
       </Pressable>
     </View>
