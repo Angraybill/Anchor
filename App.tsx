@@ -23,7 +23,9 @@ import { JORDAN_ID, MAYA_ID, SAM_ID } from "./src/lib/demo-fixtures";
 import {
   joinRide,
   listOpenRides,
+  listMyRides,
   postCurrentRide,
+  type JoinedRide,
 } from "./src/lib/supabase-api";
 import { supabase, type SupabaseDatabase } from "./src/lib/supabase";
 import Landing from "./src/screens/Landing";
@@ -38,6 +40,7 @@ type OfferCardData = {
   departureStart: string;
   seatsOpen: number;
 };
+type LiveRide = SupabaseDatabase["public"]["Tables"]["rides"]["Row"];
 const requestId = "request-jordan-clinic";
 const zoneLabel: Record<ZoneId, string> = {
   "north-campus": "North Campus",
@@ -56,6 +59,31 @@ function zoneForLocation(location: string, fallback: ZoneId): ZoneId {
   return fallback;
 }
 
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) {
+    return `${fallback} ${error.message}`;
+  }
+
+  if (typeof error === "object" && error !== null) {
+    const details = error as {
+      message?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      code?: unknown;
+    };
+    const parts = [details.message, details.details, details.hint]
+      .filter(
+        (part): part is string =>
+          typeof part === "string" && part.length > 0,
+      )
+      .join(" ");
+    if (parts) return `${fallback} ${parts}`;
+    if (typeof details.code === "string") return `${fallback} Code: ${details.code}`;
+  }
+
+  return fallback;
+}
+
 export default function App() {
   const [authenticated, setAuthenticated] = useState(false);
   const [, refresh] = useState(0);
@@ -67,6 +95,10 @@ export default function App() {
   const [liveOffers, setLiveOffers] = useState<
     SupabaseDatabase["public"]["Tables"]["rides"]["Row"][]
   >([]);
+  const [liveMyRides, setLiveMyRides] = useState<{
+    offered: LiveRide[];
+    joined: JoinedRide[];
+  }>({ offered: [], joined: [] });
   const liveMode = Boolean(supabase);
   useEffect(
     () => demoClient.subscribe(() => refresh((value) => value + 1)),
@@ -76,7 +108,12 @@ export default function App() {
     if (!supabase) return;
     void (async () => {
       try {
-        setLiveOffers(await listOpenRides());
+        const [openRides, myRides] = await Promise.all([
+          listOpenRides(),
+          listMyRides(),
+        ]);
+        setLiveOffers(openRides);
+        setLiveMyRides(myRides);
       } catch (error) {
         setMessage(
           error instanceof Error ? error.message : "Could not load rides.",
@@ -200,22 +237,38 @@ export default function App() {
       if (liveMode) {
         const ride = await postCurrentRide(input);
         setLiveOffers((current) => [ride, ...current]);
+        setLiveMyRides((current) => ({
+          ...current,
+          offered: [ride, ...current.offered],
+        }));
       } else await demoClient.createRouteOffer(input);
       setTab("find");
       setMessage("Your ride is posted. Other students can now join it.");
     } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Could not post ride.",
-      );
+      setMessage(errorMessage(error, "Could not post ride:"));
     }
   }
   async function joinOffer(offerId: OfferId) {
     try {
       if (liveMode) {
-        await joinRide(offerId, "North Campus Library entrance");
+        const joinedRide = await joinRide(
+          offerId,
+          "North Campus Library entrance",
+        );
         setLiveOffers((current) =>
           current.filter((offer) => offer.id !== offerId),
         );
+        setLiveMyRides((current) => ({
+          ...current,
+          joined: [
+            {
+              ride: joinedRide,
+              pickupLocation: "North Campus Library entrance",
+              joinedAt: new Date().toISOString(),
+            },
+            ...current.joined.filter((joined) => joined.ride.id !== offerId),
+          ],
+        }));
       } else {
         const match = await demoClient.joinRouteOffer(
           offerId,
@@ -256,10 +309,20 @@ export default function App() {
             <Text style={styles.avatarText}>{displayName[0]}</Text>
           </View>
         </View>
+        <View style={styles.notice}>
+          <Ionicons name="information-circle-outline" size={18} color="#31594C" />
+          <Text style={styles.noticeText}>{message}</Text>
+        </View>
         {tab === "home" && (
           <Home
-            offeredRides={offeredRides}
-            matches={matches.filter((match) => match.state === "confirmed")}
+            offeredRides={liveMode ? [] : offeredRides}
+            matches={
+              liveMode
+                ? []
+                : matches.filter((match) => match.state === "confirmed")
+            }
+            liveOfferedRides={liveMode ? liveMyRides.offered : []}
+            liveJoinedRides={liveMode ? liveMyRides.joined : []}
             onOffer={offer}
             onAccept={accept}
             onCancel={cancel}
@@ -312,26 +375,107 @@ export default function App() {
 function Home({
   offeredRides,
   matches,
+  liveOfferedRides,
+  liveJoinedRides,
   onOffer,
   onAccept,
   onCancel,
 }: {
   offeredRides: ReturnType<typeof demoClient.snapshotOffers>;
   matches: Match[];
+  liveOfferedRides: LiveRide[];
+  liveJoinedRides: JoinedRide[];
   onOffer: (match: Match, driverId: StudentId) => void;
   onAccept: (match: Match) => void;
   onCancel: (match: Match) => void;
 }) {
+  const joinedRideCount = matches.length + liveJoinedRides.length;
+  const offeredRideCount = offeredRides.length + liveOfferedRides.length;
+  const totalRideCount = joinedRideCount + offeredRideCount;
+
   return (
     <>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Your rides</Text>
-        <Text style={styles.seeAll}>{offeredRides.length + matches.length} active</Text>
+        <Text style={styles.sectionTitle}>Current Rides</Text>
+        <Text style={styles.seeAll}>
+          {totalRideCount} active
+        </Text>
       </View>
-      {offeredRides.map((offer) => <OfferedRideCard key={offer.id} offer={offer} />)}
-      {matches.map((match) => <MatchCard key={match.id} match={match} onOffer={onOffer} onAccept={onAccept} onCancel={onCancel} />)}
-      {!offeredRides.length && !matches.length && <View style={styles.empty}><Text style={styles.cardTitle}>No rides yet</Text><Text style={styles.subtitle}>Offer a seat or join an open ride to see it here.</Text></View>}
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Your rides</Text>
+      </View>
+      {joinedRideCount === 0 && <Text style={styles.emptySectionText}>None</Text>}
+      {matches.map((match) => (
+        <MatchCard
+          key={match.id}
+          match={match}
+          onOffer={onOffer}
+          onAccept={onAccept}
+          onCancel={onCancel}
+        />
+      ))}
+      {liveJoinedRides.map((joined) => (
+        <LiveRideCard
+          key={`joined-${joined.ride.id}`}
+          ride={joined.ride}
+          role="joined"
+          pickupLocation={joined.pickupLocation}
+        />
+      ))}
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Your offered rides</Text>
+      </View>
+      {offeredRideCount === 0 && (
+        <Text style={styles.emptySectionText}>None</Text>
+      )}
+      {offeredRides.map((offer) => (
+        <OfferedRideCard key={offer.id} offer={offer} />
+      ))}
+      {liveOfferedRides.map((ride) => (
+        <LiveRideCard key={`offered-${ride.id}`} ride={ride} role="offered" />
+      ))}
     </>
+  );
+}
+
+function LiveRideCard({
+  ride,
+  role,
+  pickupLocation,
+}: {
+  ride: LiveRide;
+  role: "offered" | "joined";
+  pickupLocation?: string;
+}) {
+  const departure = new Date(ride.departure_start);
+  return (
+    <View style={styles.matchCard}>
+      <Text style={styles.cardKicker}>
+        {role === "offered" ? "YOUR OFFERED RIDE" : "JOINED RIDE"}
+      </Text>
+      <Text style={styles.cardTitle}>
+        {role === "offered"
+          ? `Driving to ${ride.destination_location}`
+          : `${ride.driver_name} is driving to ${ride.destination_location}`}
+      </Text>
+      <View style={styles.routeLine}>
+        <Text style={styles.routeText}>{ride.origin_location}</Text>
+        <Ionicons name="arrow-forward" size={15} color="#8A8C88" />
+        <Text style={styles.routeText}>{ride.destination_location}</Text>
+      </View>
+      <Text style={styles.explanation}>
+        Leaves {departure.toLocaleDateString([], { month: "short", day: "numeric" })} around {departure.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+      </Text>
+      {role === "offered" ? (
+        <Text style={styles.explanation}>
+          {ride.seats_open} seat{ride.seats_open === 1 ? "" : "s"} available
+        </Text>
+      ) : (
+        <Text style={styles.pickup}>Pickup: {pickupLocation}</Text>
+      )}
+    </View>
   );
 }
 
@@ -511,10 +655,11 @@ function MatchCard({
 function OfferRide({
   onPosted,
 }: {
-  onPosted: (input: CreateRouteOfferInput) => void;
+  onPosted: (input: CreateRouteOfferInput) => void | Promise<void>;
 }) {
   const [origin, setOrigin] = useState("North Campus");
   const [destination, setDestination] = useState("");
+  const [posting, setPosting] = useState(false);
   const [departureTime, setDepartureTime] = useState(() => {
     const time = new Date();
     time.setDate(time.getDate() + 1);
@@ -531,6 +676,27 @@ function OfferRide({
       seatCount >= 1 &&
       seatCount <= 4,
   );
+
+  async function submitRide() {
+    if (!canPost || posting) return;
+    setPosting(true);
+    try {
+      await onPosted({
+        originZone: zoneForLocation(origin, "north-campus"),
+        originLocation: origin.trim(),
+        destinationZone: zoneForLocation(destination, "downtown"),
+        destinationLocation: destination.trim(),
+        departureStart: departureTime.toISOString(),
+        departureEnd: departureEnd.toISOString(),
+        seatsOpen: seatCount,
+        maxDetourMinutes: 0,
+        preferenceTags: ["quiet_ride"],
+      });
+    } finally {
+      setPosting(false);
+    }
+  }
+
   return (
     <>
       <View style={styles.pageHeading}>
@@ -608,23 +774,16 @@ function OfferRide({
           keyboardType="number-pad"
         />
         <Pressable
-          disabled={!canPost}
-          style={[styles.postButton, !canPost && styles.postButtonDisabled]}
-          onPress={() =>
-            onPosted({
-              originZone: zoneForLocation(origin, "north-campus"),
-              originLocation: origin.trim(),
-              destinationZone: zoneForLocation(destination, "downtown"),
-              destinationLocation: destination.trim(),
-              departureStart: departureTime.toISOString(),
-              departureEnd: departureEnd.toISOString(),
-              seatsOpen: seatCount,
-              maxDetourMinutes: 0,
-              preferenceTags: ["quiet_ride"],
-            })
-          }
+          disabled={!canPost || posting}
+          style={[
+            styles.postButton,
+            (!canPost || posting) && styles.postButtonDisabled,
+          ]}
+          onPress={submitRide}
         >
-          <Text style={styles.postButtonText}>Post open ride</Text>
+          <Text style={styles.postButtonText}>
+            {posting ? "Posting ride…" : "Post open ride"}
+          </Text>
           <Ionicons name="arrow-forward" size={17} color="#FFF" />
         </Pressable>
         <Text style={styles.helper}>

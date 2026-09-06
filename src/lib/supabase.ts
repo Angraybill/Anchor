@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export type SupabaseDatabase = {
   public: {
@@ -6,6 +7,7 @@ export type SupabaseDatabase = {
       rides: {
         Row: {
           id: string;
+          driver_id: string | null;
           driver_name: string;
           origin_location: string;
           destination_location: string;
@@ -41,6 +43,7 @@ export const supabase: SupabaseClient | null =
   supabaseUrl && supabaseAnonKey
     ? createClient(supabaseUrl, supabaseAnonKey, {
         auth: {
+          storage: AsyncStorage,
           autoRefreshToken: true,
           persistSession: true,
           detectSessionInUrl: false,

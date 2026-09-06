@@ -3,6 +3,25 @@ import type { CreateRouteOfferInput } from "./contracts";
 
 type Ride = SupabaseDatabase["public"]["Tables"]["rides"]["Row"];
 
+export type JoinedRide = {
+  ride: Ride;
+  pickupLocation: string;
+  joinedAt: string;
+};
+
+export type MyRides = {
+  offered: Ride[];
+  joined: JoinedRide[];
+};
+
+async function requireCurrentUser() {
+  const client = requireSupabase();
+  const { data, error } = await client.auth.getUser();
+  if (error) throw error;
+  if (!data.user) throw new Error("Sign in before using live rides.");
+  return { client, user: data.user };
+}
+
 export async function listOpenRides(): Promise<Ride[]> {
   const { data, error } = await requireSupabase()
     .from("rides")
@@ -17,9 +36,11 @@ export async function listOpenRides(): Promise<Ride[]> {
 export async function postCurrentRide(
   input: CreateRouteOfferInput,
 ): Promise<Ride> {
-  const { data, error } = await requireSupabase()
+  const { client, user } = await requireCurrentUser();
+  const { data, error } = await client
     .from("rides")
     .insert({
+      driver_id: user.id,
       driver_name: "Cal Poly driver",
       origin_location: input.originLocation,
       destination_location: input.destinationLocation,
@@ -39,10 +60,48 @@ export async function joinRide(
   rideId: string,
   pickupLocation: string,
 ): Promise<Ride> {
-  const { data, error } = await requireSupabase().rpc("join_ride", {
+  const { client } = await requireCurrentUser();
+  const { data, error } = await client.rpc("join_ride", {
     target_ride_id: rideId,
     pickup_location: pickupLocation,
   });
   if (error) throw error;
   return data as Ride;
+}
+
+export async function listMyRides(): Promise<MyRides> {
+  const { client, user } = await requireCurrentUser();
+  const [offeredResult, joinedResult] = await Promise.all([
+    client
+      .from("rides")
+      .select("*")
+      .eq("driver_id", user.id)
+      .in("status", ["active", "full"])
+      .order("departure_start"),
+    client
+      .from("ride_passengers")
+      .select("ride_id, pickup_location, joined_at, ride:rides(*)")
+      .eq("rider_id", user.id)
+      .order("joined_at", { ascending: false }),
+  ]);
+
+  if (offeredResult.error) throw offeredResult.error;
+  if (joinedResult.error) throw joinedResult.error;
+
+  const joined = (joinedResult.data ?? []).flatMap((row) => {
+    const ride = row.ride as unknown as Ride | null;
+    if (!ride) return [];
+    return [
+      {
+        ride,
+        pickupLocation: row.pickup_location as string,
+        joinedAt: row.joined_at as string,
+      },
+    ];
+  });
+
+  return {
+    offered: (offeredResult.data ?? []) as Ride[],
+    joined,
+  };
 }

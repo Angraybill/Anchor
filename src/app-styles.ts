@@ -89,6 +89,11 @@ export const styles = StyleSheet.create({
   },
   sectionTitle: { color: "#17201E", fontSize: 18, fontWeight: "800" },
   seeAll: { color: "#77817A", fontSize: 12 },
+  emptySectionText: {
+    color: "#737A73",
+    fontSize: 14,
+    marginBottom: 18,
+  },
   actionRow: { flexDirection: "row", gap: 12, marginBottom: 22 },
   actionCard: {
     backgroundColor: "#FFF",
