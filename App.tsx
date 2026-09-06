@@ -22,7 +22,9 @@ import {
 import { JORDAN_ID, MAYA_ID, SAM_ID } from "./src/lib/demo-fixtures";
 import {
   joinRide,
+  listDriverRides,
   listOpenRides,
+  listRidePassengers,
   postCurrentRide,
 } from "./src/lib/supabase-api";
 import { supabase, type SupabaseDatabase } from "./src/lib/supabase";
@@ -36,6 +38,7 @@ type OfferCardData = {
   departureStart: string;
   seatsOpen: number;
   maxDetourMinutes: number;
+  passengerNames: string[];
 };
 const requestId = "request-jordan-clinic";
 const zoneLabel: Record<ZoneId, string> = {
@@ -65,7 +68,11 @@ export default function App() {
   const [liveOffers, setLiveOffers] = useState<
     SupabaseDatabase["public"]["Tables"]["rides"]["Row"][]
   >([]);
+  const [livePassengerNames, setLivePassengerNames] = useState<
+    Record<string, string[]>
+  >({});
   const liveMode = Boolean(supabase);
+  const actor = demoClient.currentActor;
   useEffect(
     () => demoClient.subscribe(() => refresh((value) => value + 1)),
     [],
@@ -74,15 +81,46 @@ export default function App() {
     if (!supabase) return;
     void (async () => {
       try {
-        setLiveOffers(await listOpenRides());
+        const [openRides, driverRides] = await Promise.all([
+          listOpenRides(),
+          listDriverRides(actor.displayName),
+        ]);
+        const rides = new Map(
+          [...openRides, ...driverRides].map((ride) => [ride.id, ride]),
+        );
+        setLiveOffers([...rides.values()]);
       } catch (error) {
         setMessage(
           error instanceof Error ? error.message : "Could not load rides.",
         );
       }
     })();
-  }, []);
-  const actor = demoClient.currentActor;
+  }, [actor.displayName]);
+  useEffect(() => {
+    if (!supabase || liveOffers.length === 0) return;
+    void Promise.all(
+      liveOffers
+        .filter((offer) => offer.driver_name === actor.displayName)
+        .map(async (offer) => {
+          const passengers = await listRidePassengers(
+            offer.id,
+            actor.displayName,
+          );
+          return [
+            offer.id,
+            passengers.map((passenger) => passenger.passenger_name),
+          ] as const;
+        }),
+    )
+      .then((entries) => setLivePassengerNames(Object.fromEntries(entries)))
+      .catch((error) => {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not load joined passengers.",
+        );
+      });
+  }, [liveOffers, actor.displayName]);
   const matches = useMemo(
     () => demoClient.snapshotMatches(requestId),
     [requestId, actor],
@@ -99,6 +137,7 @@ export default function App() {
           departureStart: offer.departureStart,
           seatsOpen: offer.seatsOpen,
           maxDetourMinutes: offer.maxDetourMinutes,
+          passengerNames: demoClient.listJoinedPassengerNames(offer.id),
         })),
     [actor],
   );
@@ -111,6 +150,7 @@ export default function App() {
         departureStart: offer.departure_start,
         seatsOpen: offer.seats_open,
         maxDetourMinutes: offer.max_detour_minutes,
+        passengerNames: livePassengerNames[offer.id] ?? [],
       }))
     : demoOffers;
   const activeMatch = matches.find((match) =>
@@ -196,7 +236,7 @@ export default function App() {
   async function createOffer(input: CreateRouteOfferInput) {
     try {
       if (liveMode) {
-        const ride = await postCurrentRide(input);
+        const ride = await postCurrentRide(input, actor.displayName);
         setLiveOffers((current) => [ride, ...current]);
       } else await demoClient.createRouteOffer(input);
       setTab("find");
@@ -210,7 +250,11 @@ export default function App() {
   async function joinOffer(offerId: OfferId) {
     try {
       if (liveMode) {
-        await joinRide(offerId, "North Campus Library entrance");
+        await joinRide(
+          offerId,
+          "North Campus Library entrance",
+          actor.displayName,
+        );
         setLiveOffers((current) =>
           current.filter((offer) => offer.id !== offerId),
         );
@@ -266,7 +310,13 @@ export default function App() {
             onProgress={progress}
           />
         )}
-        {tab === "find" && <Find offers={openOffers} onJoin={joinOffer} />}
+        {tab === "find" && (
+          <Find
+            offers={openOffers}
+            actorName={actor.displayName}
+            onJoin={joinOffer}
+          />
+        )}
         {tab === "plan" && <OfferRide onPosted={createOffer} />}
         {tab === "profile" && (
           <Profile
@@ -398,9 +448,11 @@ function Home({
 
 function Find({
   offers,
+  actorName,
   onJoin,
 }: {
   offers: OfferCardData[];
+  actorName: string;
   onJoin: (offerId: OfferId) => void;
 }) {
   return (
@@ -412,7 +464,12 @@ function Find({
         </Text>
       </View>
       {offers.map((offer) => (
-        <OpenOfferCard key={offer.id} offer={offer} onJoin={onJoin} />
+        <OpenOfferCard
+          key={offer.id}
+          offer={offer}
+          actorName={actorName}
+          onJoin={onJoin}
+        />
       ))}
       {offers.length === 0 && (
         <View style={styles.empty}>
@@ -429,11 +486,15 @@ function Find({
 
 function OpenOfferCard({
   offer,
+  actorName,
   onJoin,
 }: {
   offer: OfferCardData;
+  actorName: string;
   onJoin: (offerId: OfferId) => void;
 }) {
+  const isOwnRide = offer.driverName === actorName;
+
   return (
     <View style={styles.matchCard}>
       <View style={styles.matchTop}>
@@ -468,12 +529,30 @@ function OpenOfferCard({
         })}{" "}
         • up to {offer.maxDetourMinutes} min detour
       </Text>
-      <Pressable
-        style={styles.darkButtonSmall}
-        onPress={() => onJoin(offer.id)}
-      >
-        <Text style={styles.darkButtonText}>Join this ride</Text>
-      </Pressable>
+      {isOwnRide && (
+        <View style={styles.passengerList}>
+          <Text style={styles.passengerLabel}>RIDERS IN YOUR CAR</Text>
+          {offer.passengerNames.length > 0 ? (
+            offer.passengerNames.map((name) => (
+              <Text key={name} style={styles.passengerName}>
+                {name}
+              </Text>
+            ))
+          ) : (
+            <Text style={styles.passengerName}>No riders yet</Text>
+          )}
+        </View>
+      )}
+      {isOwnRide ? (
+        <Text style={styles.helper}>You posted this ride.</Text>
+      ) : (
+        <Pressable
+          style={styles.darkButtonSmall}
+          onPress={() => onJoin(offer.id)}
+        >
+          <Text style={styles.darkButtonText}>Join this ride</Text>
+        </Pressable>
+      )}
     </View>
   );
 }

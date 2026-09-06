@@ -249,6 +249,20 @@ export const styles = StyleSheet.create({
   choiceActive: { backgroundColor: "#E2EEE7", borderWidth: 1, borderColor: "#8EB6A2" },
   choiceText: { color: "#34413A", fontSize: 14, fontWeight: "700", flex: 1 },
   choiceTextActive: { color: "#28584D" },
+  passengerList: {
+    backgroundColor: "#E2EEE7",
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 14,
+  },
+  passengerLabel: {
+    color: "#527267",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  passengerName: { color: "#28584D", fontSize: 13, fontWeight: "800", marginTop: 3 },
   helper: { color: "#838A83", fontSize: 12, lineHeight: 18, marginTop: 14 },
   profileCard: {
     backgroundColor: "#163B35",

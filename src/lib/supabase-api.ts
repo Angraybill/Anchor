@@ -14,13 +14,22 @@ export async function listOpenRides(): Promise<Ride[]> {
   return data ?? [];
 }
 
+export async function listDriverRides(driverName: string): Promise<Ride[]> {
+  const { data, error } = await requireSupabase().rpc("list_driver_rides", {
+    driver_name: driverName,
+  });
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function postCurrentRide(
   input: CreateRouteOfferInput,
+  driverName: string,
 ): Promise<Ride> {
   const { data, error } = await requireSupabase()
     .from("rides")
     .insert({
-      driver_name: "Cal Poly driver",
+      driver_name: driverName,
       origin_location: input.originLocation,
       destination_location: input.destinationLocation,
       departure_start: input.departureStart,
@@ -38,11 +47,25 @@ export async function postCurrentRide(
 export async function joinRide(
   rideId: string,
   pickupLocation: string,
+  passengerName: string,
 ): Promise<Ride> {
   const { data, error } = await requireSupabase().rpc("join_ride", {
     target_ride_id: rideId,
     pickup_location: pickupLocation,
+    passenger_name: passengerName,
   });
   if (error) throw error;
   return data as Ride;
+}
+
+export async function listRidePassengers(
+  rideId: string,
+  driverName: string,
+): Promise<SupabaseDatabase["public"]["Tables"]["ride_passengers"]["Row"][]> {
+  const { data, error } = await requireSupabase().rpc("list_ride_passengers", {
+    target_ride_id: rideId,
+    driver_name: driverName,
+  });
+  if (error) throw error;
+  return data ?? [];
 }

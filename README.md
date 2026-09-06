@@ -26,7 +26,7 @@ The implementation uses Expo, React Native, TypeScript, and Supabase. When the E
 
 ## Supabase backend
 
-The current backend scope is rides only. It provides a public `rides` table for driver-posted rides, a `ride_passengers` table for immediate joins, and an atomic `join_ride` database function. Joining a ride is not a request workflow: an available seat is claimed immediately.
+The current backend scope is rides only. It provides a public `rides` table for driver-posted rides, a `ride_passengers` table for immediate joins, and an atomic `join_ride` database function. Joining a ride is not a request workflow: an available seat is claimed immediately and the driver can see the joined rider's display name.
 
 After installing the Supabase CLI and creating a project:
 

@@ -106,4 +106,16 @@ describe("DemoAnchorClient", () => {
       publicLandmark: "North Campus public entrance",
     });
   });
+
+  it("shows a joined rider's name to the driver only", async () => {
+    const client = new DemoAnchorClient();
+    client.setDemoActor(JORDAN_ID);
+    await client.joinRouteOffer(MAYA_OFFER_ID, "Cal Poly Rec Center");
+
+    client.setDemoActor(MAYA_ID);
+    expect(client.listJoinedPassengerNames(MAYA_OFFER_ID)).toEqual(["Jordan"]);
+
+    client.setDemoActor(SAM_ID);
+    expect(client.listJoinedPassengerNames(MAYA_OFFER_ID)).toEqual([]);
+  });
 });

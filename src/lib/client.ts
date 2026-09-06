@@ -143,6 +143,20 @@ export class DemoAnchorClient implements AnchorClient {
     );
   }
 
+  listJoinedPassengerNames(offerId: OfferId): string[] {
+    const offer = this.getOffer(offerId);
+    if (offer.driverId !== this.actorId) return [];
+
+    return this.state.matches
+      .filter(
+        (match) =>
+          match.offerId === offerId &&
+          ["confirmed", "in_progress", "completed"].includes(match.state),
+      )
+      .map((match) => this.getRequest(match.requestId).riderId)
+      .map((riderId) => this.snapshotStudent(riderId).displayName);
+  }
+
   async joinRouteOffer(
     offerId: OfferId,
     pickupLocation: string,

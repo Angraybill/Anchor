@@ -161,6 +161,7 @@ export interface AnchorClient {
   setDemoActor(studentId: StudentId): void;
   createRouteOffer(input: CreateRouteOfferInput): Promise<RouteOffer>;
   listOpenOffers(): RouteOffer[];
+  listJoinedPassengerNames(offerId: OfferId): string[];
   joinRouteOffer(offerId: OfferId, pickupLocation: string): Promise<Match>;
   createAnchorRequest(input: CreateAnchorRequestInput): Promise<AnchorRequest>;
   listCandidates(requestId: RequestId): Promise<Match[]>;

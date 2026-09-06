@@ -24,11 +24,39 @@ export type SupabaseDatabase = {
           SupabaseDatabase["public"]["Tables"]["rides"]["Insert"]
         >;
       };
+      ride_passengers: {
+        Row: {
+          id: string;
+          ride_id: string;
+          passenger_name: string;
+          pickup_location: string;
+          joined_at: string;
+        };
+        Insert: Omit<
+          SupabaseDatabase["public"]["Tables"]["ride_passengers"]["Row"],
+          "id" | "joined_at"
+        >;
+        Update: Partial<
+          SupabaseDatabase["public"]["Tables"]["ride_passengers"]["Insert"]
+        >;
+      };
     };
     Functions: {
       join_ride: {
-        Args: { target_ride_id: string; pickup_location: string };
+        Args: {
+          target_ride_id: string;
+          pickup_location: string;
+          passenger_name: string;
+        };
         Returns: SupabaseDatabase["public"]["Tables"]["rides"]["Row"];
+      };
+      list_ride_passengers: {
+        Args: { target_ride_id: string; driver_name: string };
+        Returns: SupabaseDatabase["public"]["Tables"]["ride_passengers"]["Row"][];
+      };
+      list_driver_rides: {
+        Args: { driver_name: string };
+        Returns: SupabaseDatabase["public"]["Tables"]["rides"]["Row"][];
       };
     };
   };
