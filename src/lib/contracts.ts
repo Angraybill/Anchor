@@ -68,6 +68,7 @@ export type RouteOffer = {
   departureStart: string;
   departureEnd: string;
   seatsOpen: number;
+  costCents: number;
   maxDetourMinutes: number;
   status: OfferStatus;
   preferenceTags: PreferenceTag[];

@@ -50,6 +50,7 @@ export async function postCurrentRide(
       departure_start: input.departureStart,
       departure_end: input.departureEnd,
       seats_open: input.seatsOpen,
+      cost_cents: input.costCents,
       max_detour_minutes: input.maxDetourMinutes,
       status: "active",
     })

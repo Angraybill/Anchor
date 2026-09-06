@@ -493,6 +493,16 @@ export class DemoAnchorClient implements AnchorClient {
       );
     }
     if (
+      !Number.isInteger(input.costCents) ||
+      input.costCents < 0 ||
+      input.costCents > 10000
+    ) {
+      throw new AnchorCommandError(
+        "VALIDATION",
+        "Cost share must be between $0 and $100 per passenger.",
+      );
+    }
+    if (
       !Number.isInteger(input.maxDetourMinutes) ||
       input.maxDetourMinutes < 0 ||
       input.maxDetourMinutes > 20

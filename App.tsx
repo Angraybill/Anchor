@@ -40,6 +40,7 @@ type OfferCardData = {
   destinationLocation: string;
   departureStart: string;
   seatsOpen: number;
+  costCents: number;
 };
 type LiveRide = SupabaseDatabase["public"]["Tables"]["rides"]["Row"];
 type SavedProfile = StudentProfile;
@@ -84,6 +85,12 @@ function errorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback;
+}
+
+function formatCostShare(costCents: number): string {
+  return costCents > 0
+    ? `$${(costCents / 100).toFixed(2)} voluntary cost share per passenger`
+    : "No cost share requested";
 }
 
 function savedProfileFromUser(user: { email?: string | null; user_metadata?: Record<string, unknown> }): SavedProfile | null {
@@ -204,6 +211,7 @@ export default function App() {
           destinationLocation: offer.destinationLocation,
           departureStart: offer.departureStart,
           seatsOpen: offer.seatsOpen,
+          costCents: offer.costCents,
         })),
     [actor],
   );
@@ -216,6 +224,7 @@ export default function App() {
         destinationLocation: offer.destination_location,
         departureStart: offer.departure_start,
         seatsOpen: offer.seats_open,
+        costCents: offer.cost_cents,
       }))
     : demoOffers).filter((offer) => offer.driverId !== actor.id);
   const activeMatch = matches.find((match) =>
@@ -576,6 +585,7 @@ function LiveRideCard({
       ) : (
         <Text style={styles.pickup}>Pickup: {pickupLocation}</Text>
       )}
+      <Text style={styles.costShare}>{formatCostShare(ride.cost_cents)}</Text>
     </View>
   );
 }
@@ -651,6 +661,7 @@ function OpenOfferCard({
           minute: "2-digit",
         })}{" "}
       </Text>
+      <Text style={styles.costShare}>{formatCostShare(offer.costCents)}</Text>
       <Pressable
         style={[styles.darkButtonSmall, styles.joinButton]}
         onPress={() => onJoin(offer.id)}
@@ -678,6 +689,7 @@ function OfferedRideCard({
       <Text style={styles.explanation}>
         {offer.seatsOpen} seat{offer.seatsOpen === 1 ? "" : "s"} available
       </Text>
+      <Text style={styles.costShare}>{formatCostShare(offer.costCents)}</Text>
     </View>
   );
 }
@@ -721,6 +733,7 @@ function MatchCard({
           ✓ {item.text}
         </Text>
       ))}
+      <Text style={styles.costShare}>{formatCostShare(offer.costCents)}</Text>
       {confirmed && (
         <Text style={styles.pickup}>Pickup: {offer.originLocation}</Text>
       )}
@@ -768,14 +781,21 @@ function OfferRide({
     return time;
   });
   const [seats, setSeats] = useState("");
+  const [costShare, setCostShare] = useState("0");
   const seatCount = Number(seats);
+  const costCents = /^\d+(\.\d{1,2})?$/.test(costShare)
+    ? Math.round(Number(costShare) * 100)
+    : Number.NaN;
   const departureEnd = new Date(departureTime.getTime() + 10 * 60 * 1000);
   const canPost = Boolean(
     origin.trim() &&
       destination.trim() &&
       Number.isInteger(seatCount) &&
       seatCount >= 1 &&
-      seatCount <= 4,
+      seatCount <= 4 &&
+      Number.isInteger(costCents) &&
+      costCents >= 0 &&
+      costCents <= 10000,
   );
 
   async function submitRide() {
@@ -790,6 +810,7 @@ function OfferRide({
         departureStart: departureTime.toISOString(),
         departureEnd: departureEnd.toISOString(),
         seatsOpen: seatCount,
+        costCents,
         maxDetourMinutes: 0,
         preferenceTags: ["quiet_ride"],
       });
@@ -874,6 +895,18 @@ function OfferRide({
           style={styles.input}
           keyboardType="number-pad"
         />
+        <Text style={styles.fieldLabel}>Voluntary cost share per passenger</Text>
+        <TextInput
+          value={costShare}
+          onChangeText={setCostShare}
+          placeholder="0.00"
+          placeholderTextColor="#9BA19B"
+          style={styles.input}
+          keyboardType="decimal-pad"
+        />
+        <Text style={styles.helper}>
+          USD only. PolyPassenger does not collect or process payments.
+        </Text>
         <Pressable
           disabled={!canPost || posting}
           style={[

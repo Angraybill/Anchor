@@ -14,6 +14,7 @@ export type SupabaseDatabase = {
           departure_start: string;
           departure_end: string;
           seats_open: number;
+          cost_cents: number;
           max_detour_minutes: number;
           status: "active" | "full" | "cancelled" | "expired";
           created_at: string;

@@ -181,6 +181,17 @@ export const styles = StyleSheet.create({
   routeText: { color: "#59625C", fontSize: 11, fontWeight: "700" },
   dot: { color: "#A3AAA2" },
   explanation: { color: "#6D776F", fontSize: 11, marginTop: 8 },
+  costShare: {
+    alignSelf: "flex-start",
+    backgroundColor: "#F1F5F1",
+    borderRadius: 12,
+    color: "#28584D",
+    fontSize: 11,
+    fontWeight: "800",
+    marginTop: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
   pickup: {
     color: "#28584D",
     backgroundColor: "#E5F2EA",
