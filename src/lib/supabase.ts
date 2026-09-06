@@ -33,6 +33,25 @@ export type SupabaseDatabase = {
         Args: { target_ride_id: string; pickup_location: string };
         Returns: SupabaseDatabase["public"]["Tables"]["rides"]["Row"];
       };
+      list_my_joined_rides: {
+        Args: Record<PropertyKey, never>;
+        Returns: Array<{
+          id: string;
+          driver_id: string | null;
+          driver_name: string;
+          origin_location: string;
+          destination_location: string;
+          departure_start: string;
+          departure_end: string;
+          seats_open: number;
+          max_detour_minutes: number;
+          status: "active" | "full" | "cancelled" | "expired";
+          created_at: string;
+          cost_cents: number;
+          pickup_location: string;
+          joined_at: string;
+        }>;
+      };
     };
   };
 };
