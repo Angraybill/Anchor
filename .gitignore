@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .expo/
+supabase/.temp/
 .env
 .env.*
 !.env.example
