@@ -401,7 +401,7 @@ export const styles = StyleSheet.create({
     justifyContent: "space-around",
     alignItems: "center",
   },
-  navItem: { alignItems: "center", justifyContent: "center", minWidth: 66 },
+  navItem: { alignItems: "center", justifyContent: "center", minWidth: 54 },
   navIcon: {
     width: 31,
     height: 31,

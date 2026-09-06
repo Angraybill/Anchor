@@ -34,7 +34,7 @@ import { supabase, type SupabaseDatabase } from "./src/lib/supabase";
 import Landing from "./src/screens/Landing";
 import ProfileSetup, { type StudentProfile } from "./src/screens/ProfileSetup";
 
-type Tab = "home" | "find" | "plan" | "profile";
+type Tab = "home" | "find" | "requests" | "plan" | "profile";
 type OfferCardData = {
   id: OfferId;
   driverId?: StudentId;
@@ -319,7 +319,7 @@ export default function App() {
         setRequestId(request.id);
       }
       setRequestingRide(false);
-      setTab("find");
+      setTab("requests");
       if (liveMode) await loadLiveRides();
       setMessage("Your public request is posted. Browse available rides below; a match is never guaranteed.");
     } catch (error) {
@@ -489,18 +489,17 @@ export default function App() {
             onCancel={cancel}
           />
         )}
-        {tab === "find" && (
+        {tab === "find" && <Find offers={openOffers} onJoin={joinOffer} />}
+        {tab === "requests" && (
           requestingRide ? (
             <RequestRide
               onCancel={() => setRequestingRide(false)}
               onSubmit={createRequest}
             />
           ) : (
-            <Find
-              offers={openOffers}
+            <RideRequests
               requests={liveMode ? publicRequests : []}
               currentUserId={authUserId}
-              onJoin={joinOffer}
               onRequest={() => setRequestingRide(true)}
               onOfferToDrive={(request) => {
                 setOfferingForRequest(request);
@@ -552,6 +551,12 @@ export default function App() {
           label="Join a ride"
           active={tab === "find"}
           onPress={() => setTab("find")}
+        />
+        <Nav
+          icon="clipboard-outline"
+          label="Requests"
+          active={tab === "requests"}
+          onPress={() => setTab("requests")}
         />
         <Nav
           icon="car"
@@ -683,18 +688,10 @@ function LiveRideCard({
 
 function Find({
   offers,
-  requests,
-  currentUserId,
   onJoin,
-  onRequest,
-  onOfferToDrive,
 }: {
   offers: OfferCardData[];
-  requests: PublicRideRequest[];
-  currentUserId: string;
   onJoin: (offerId: OfferId) => void;
-  onRequest: () => void;
-  onOfferToDrive: (request: PublicRideRequest) => void;
 }) {
   return (
     <>
@@ -703,15 +700,6 @@ function Find({
         <Text style={styles.subtitle}>
           Browse rides posted by Cal Poly drivers.
         </Text>
-      </View>
-      <View style={styles.requestPrompt}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.requestPromptTitle}>Need a ride for a specific trip?</Text>
-          <Text style={styles.requestPromptBody}>Post a public request using a broad public landmark.</Text>
-        </View>
-        <Pressable style={styles.requestPromptButton} onPress={onRequest}>
-          <Text style={styles.requestPromptButtonText}>Request a ride</Text>
-        </Pressable>
       </View>
       {offers.map((offer) => (
         <OpenOfferCard key={offer.id} offer={offer} onJoin={onJoin} />
@@ -725,11 +713,48 @@ function Find({
           </Text>
         </View>
       )}
+    </>
+  );
+}
+
+function RideRequests({
+  requests,
+  currentUserId,
+  onRequest,
+  onOfferToDrive,
+}: {
+  requests: PublicRideRequest[];
+  currentUserId: string;
+  onRequest: () => void;
+  onOfferToDrive: (request: PublicRideRequest) => void;
+}) {
+  return (
+    <>
+      <View style={styles.pageHeading}>
+        <Text style={styles.pageTitle}>Ride requests</Text>
+        <Text style={styles.subtitle}>Request a ride at a public landmark or offer to drive another student.</Text>
+      </View>
+      <View style={styles.requestPrompt}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.requestPromptTitle}>Need a ride for a specific trip?</Text>
+          <Text style={styles.requestPromptBody}>Post a public request using a broad public landmark.</Text>
+        </View>
+        <Pressable style={styles.requestPromptButton} onPress={onRequest}>
+          <Text style={styles.requestPromptButtonText}>Request a ride</Text>
+        </Pressable>
+      </View>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Student ride requests</Text>
         <Text style={styles.seeAll}>Public areas only</Text>
       </View>
-      {requests.map((request) => <PublicRequestCard key={request.id} request={request} currentUserId={currentUserId} onOfferToDrive={onOfferToDrive} />)}
+      {requests.map((request) => (
+        <PublicRequestCard
+          key={request.id}
+          request={request}
+          currentUserId={currentUserId}
+          onOfferToDrive={onOfferToDrive}
+        />
+      ))}
       {requests.length === 0 && <Text style={styles.emptySectionText}>No public ride requests yet.</Text>}
     </>
   );
