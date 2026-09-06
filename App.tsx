@@ -36,7 +36,6 @@ type OfferCardData = {
   destinationLocation: string;
   departureStart: string;
   seatsOpen: number;
-  maxDetourMinutes: number;
 };
 const requestId = "request-jordan-clinic";
 const zoneLabel: Record<ZoneId, string> = {
@@ -104,7 +103,6 @@ export default function App() {
           destinationLocation: offer.destinationLocation,
           departureStart: offer.departureStart,
           seatsOpen: offer.seatsOpen,
-          maxDetourMinutes: offer.maxDetourMinutes,
         })),
     [actor],
   );
@@ -117,7 +115,6 @@ export default function App() {
         destinationLocation: offer.destination_location,
         departureStart: offer.departure_start,
         seatsOpen: offer.seats_open,
-        maxDetourMinutes: offer.max_detour_minutes,
       }))
     : demoOffers).filter((offer) => offer.driverId !== actor.id);
   const activeMatch = matches.find((match) =>
@@ -150,12 +147,8 @@ export default function App() {
   }
   async function cancel(match: Match) {
     try {
-      const result = await demoClient.cancelMatch(match.id, "driver_change");
-      setMessage(
-        result.rescueStatus === "rematched"
-          ? "Ride cancelled. Rescue found another option."
-          : "Ride cancelled.",
-      );
+      await demoClient.cancelMatch(match.id, "driver_change");
+      setMessage("Ride cancelled.");
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Could not cancel this ride.",
@@ -256,10 +249,6 @@ export default function App() {
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{displayName[0]}</Text>
           </View>
-        </View>
-        <View style={styles.notice}>
-          <Ionicons name="shield-checkmark" size={18} color="#163B35" />
-          <Text style={styles.noticeText}>{message}</Text>
         </View>
         {tab === "home" && (
           <Home
@@ -410,7 +399,6 @@ function OpenOfferCard({
           hour: "numeric",
           minute: "2-digit",
         })}{" "}
-        • up to {offer.maxDetourMinutes} min detour
       </Text>
       <Pressable
         style={styles.darkButtonSmall}
@@ -471,17 +459,11 @@ function MatchCard({
             {driver.displayName} is going to {offer.destinationLocation}
           </Text>
         </View>
-        <View style={styles.timePill}>
-          <Text style={styles.timeBig}>{match.arrivalSlackMinutes}</Text>
-          <Text style={styles.timeSmall}>min early</Text>
-        </View>
       </View>
       <View style={styles.routeLine}>
         <Text style={styles.routeText}>{offer.originLocation}</Text>
         <Ionicons name="arrow-forward" size={15} color="#8A8C88" />
         <Text style={styles.routeText}>{offer.destinationLocation}</Text>
-        <Text style={styles.dot}>•</Text>
-        <Text style={styles.routeText}>{match.detourMinutes} min detour</Text>
       </View>
       {match.explanation.map((item) => (
         <Text key={item.text} style={styles.explanation}>
@@ -512,7 +494,7 @@ function MatchCard({
         )}
         {confirmed && onCancel && (
           <Pressable style={styles.textButton} onPress={() => onCancel(match)}>
-            <Text style={styles.textButtonLabel}>Cancel + Rescue</Text>
+            <Text style={styles.textButtonLabel}>Cancel ride</Text>
           </Pressable>
         )}
       </View>
@@ -631,7 +613,7 @@ function OfferRide({
               departureStart: departureTime.toISOString(),
               departureEnd: departureEnd.toISOString(),
               seatsOpen: seatCount,
-              maxDetourMinutes: 10,
+              maxDetourMinutes: 0,
               preferenceTags: ["quiet_ride"],
             })
           }
