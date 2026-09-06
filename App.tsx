@@ -30,6 +30,7 @@ import { supabase, type SupabaseDatabase } from "./src/lib/supabase";
 type Tab = "home" | "find" | "plan" | "profile";
 type OfferCardData = {
   id: OfferId;
+  driverId?: StudentId;
   driverName: string;
   originLocation: string;
   destinationLocation: string;
@@ -83,6 +84,10 @@ export default function App() {
     })();
   }, []);
   const actor = demoClient.currentActor;
+  const offeredRides = useMemo(
+    () => demoClient.snapshotOffers().filter((offer) => offer.driverId === actor.id),
+    [actor],
+  );
   const matches = useMemo(
     () => demoClient.snapshotMatches(requestId),
     [requestId, actor],
@@ -93,6 +98,7 @@ export default function App() {
         .listOpenOffers()
         .map((offer) => ({
           id: offer.id,
+          driverId: offer.driverId,
           driverName: demoClient.snapshotStudent(offer.driverId).displayName,
           originLocation: offer.originLocation,
           destinationLocation: offer.destinationLocation,
@@ -102,9 +108,10 @@ export default function App() {
         })),
     [actor],
   );
-  const openOffers: OfferCardData[] = liveMode
+  const openOffers: OfferCardData[] = (liveMode
     ? liveOffers.map((offer) => ({
         id: offer.id as OfferId,
+        driverId: undefined,
         driverName: offer.driver_name,
         originLocation: offer.origin_location,
         destinationLocation: offer.destination_location,
@@ -112,7 +119,7 @@ export default function App() {
         seatsOpen: offer.seats_open,
         maxDetourMinutes: offer.max_detour_minutes,
       }))
-    : demoOffers;
+    : demoOffers).filter((offer) => offer.driverId !== actor.id);
   const activeMatch = matches.find((match) =>
     ["confirmed", "in_progress"].includes(match.state),
   );
@@ -256,14 +263,11 @@ export default function App() {
         </View>
         {tab === "home" && (
           <Home
-            activeMatch={activeMatch}
-            matches={matches}
-            onFind={() => setTab("find")}
-            onPlan={() => setTab("plan")}
+            offeredRides={offeredRides}
+            matches={matches.filter((match) => match.state === "confirmed")}
             onOffer={offer}
             onAccept={accept}
             onCancel={cancel}
-            onProgress={progress}
           />
         )}
         {tab === "find" && <Find offers={openOffers} onJoin={joinOffer} />}
@@ -311,87 +315,27 @@ export default function App() {
 }
 
 function Home({
-  activeMatch,
+  offeredRides,
   matches,
-  onFind,
-  onPlan,
   onOffer,
   onAccept,
   onCancel,
-  onProgress,
 }: {
-  activeMatch?: Match;
+  offeredRides: ReturnType<typeof demoClient.snapshotOffers>;
   matches: Match[];
-  onFind: () => void;
-  onPlan: () => void;
   onOffer: (match: Match, driverId: StudentId) => void;
   onAccept: (match: Match) => void;
   onCancel: (match: Match) => void;
-  onProgress: (match: Match) => void;
 }) {
   return (
     <>
-      <View style={styles.hero}>
-        <View style={{ flex: 1, zIndex: 1 }}>
-          <Text style={styles.heroLabel}>NEXT COMMITMENT</Text>
-          <Text style={styles.heroTitle}>Downtown by 7:45 AM</Text>
-          <Text style={styles.heroMeta}>Tomorrow • from North Campus</Text>
-          <Pressable style={styles.darkButton} onPress={onFind}>
-            <Text style={styles.darkButtonText}>View matching rides</Text>
-            <Ionicons name="arrow-forward" size={17} color="#FFF" />
-          </Pressable>
-        </View>
-        <View style={styles.routeArt}>
-          <Ionicons name="navigate" size={54} color="#F3EDE2" />
-        </View>
-      </View>
-      {activeMatch && (
-        <MatchCard
-          match={activeMatch}
-          onOffer={onOffer}
-          onAccept={onAccept}
-          onCancel={onCancel}
-          onProgress={onProgress}
-        />
-      )}
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Quick actions</Text>
-        <Text style={styles.seeAll}>This week</Text>
+        <Text style={styles.sectionTitle}>Your rides</Text>
+        <Text style={styles.seeAll}>{offeredRides.length + matches.length} active</Text>
       </View>
-      <View style={styles.actionRow}>
-        <Action
-          icon="search"
-          title="Find a ride"
-          body="Join an open seat"
-          onPress={onFind}
-        />
-        <Action
-          icon="car"
-          title="Offer a seat"
-          body="Help someone get there"
-          onPress={onPlan}
-        />
-      </View>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>How it works</Text>
-      </View>
-      <View style={styles.steps}>
-        <Step
-          n="01"
-          title="Post your plan"
-          body="Share a broad pickup zone and arrival time."
-        />
-        <Step
-          n="02"
-          title="Join an open seat"
-          body="Tap join to claim an available seat immediately."
-        />
-        <Step
-          n="03"
-          title="Keep moving"
-          body="If plans change, Rescue helps find a replacement."
-        />
-      </View>
+      {offeredRides.map((offer) => <OfferedRideCard key={offer.id} offer={offer} />)}
+      {matches.map((match) => <MatchCard key={match.id} match={match} onOffer={onOffer} onAccept={onAccept} onCancel={onCancel} />)}
+      {!offeredRides.length && !matches.length && <View style={styles.empty}><Text style={styles.cardTitle}>No rides yet</Text><Text style={styles.subtitle}>Offer a seat or join an open ride to see it here.</Text></View>}
     </>
   );
 }
@@ -478,18 +422,37 @@ function OpenOfferCard({
   );
 }
 
+function OfferedRideCard({
+  offer,
+}: {
+  offer: ReturnType<typeof demoClient.snapshotOffer>;
+}) {
+  return (
+    <View style={styles.matchCard}>
+      <Text style={styles.cardKicker}>YOUR OFFERED RIDE</Text>
+      <Text style={styles.cardTitle}>Driving to {offer.destinationLocation}</Text>
+      <View style={styles.routeLine}>
+        <Text style={styles.routeText}>{offer.originLocation}</Text>
+        <Ionicons name="arrow-forward" size={15} color="#8A8C88" />
+        <Text style={styles.routeText}>{offer.destinationLocation}</Text>
+      </View>
+      <Text style={styles.explanation}>
+        {offer.seatsOpen} seat{offer.seatsOpen === 1 ? "" : "s"} available
+      </Text>
+    </View>
+  );
+}
+
 function MatchCard({
   match,
   onOffer,
   onAccept,
   onCancel,
-  onProgress,
 }: {
   match: Match;
   onOffer: (match: Match, driverId: StudentId) => void;
   onAccept: (match: Match) => void;
   onCancel?: (match: Match) => void;
-  onProgress?: (match: Match) => void;
 }) {
   const offer = demoClient.snapshotOffer(match.offerId);
   const driver = demoClient.snapshotStudent(offer.driverId);
@@ -545,16 +508,6 @@ function MatchCard({
             onPress={() => onAccept(match)}
           >
             <Text style={styles.darkButtonText}>Accept this ride</Text>
-          </Pressable>
-        )}
-        {confirmed && onProgress && (
-          <Pressable
-            style={styles.darkButtonSmall}
-            onPress={() => onProgress(match)}
-          >
-            <Text style={styles.darkButtonText}>
-              {match.state === "confirmed" ? "Check in" : "Complete ride"}
-            </Text>
           </Pressable>
         )}
         {confirmed && onCancel && (
@@ -711,14 +664,14 @@ function Profile({
     <>
       <View style={styles.pageHeading}>
         <Text style={styles.pageTitle}>Your profile</Text>
-        <Text style={styles.subtitle}>Local demo session</Text>
+        <Text style={styles.subtitle}>Verified student demo session</Text>
       </View>
       <View style={styles.profileCard}>
         <View style={styles.bigAvatar}>
           <Text style={styles.bigAvatarText}>{actor.displayName[0]}</Text>
         </View>
         <Text style={styles.profileName}>{actor.displayName}</Text>
-        <Text style={styles.verified}>Ride backend demo</Text>
+        <Text style={styles.verified}>✓ Verified Cal Poly student</Text>
       </View>
       <View style={styles.formCard}>
         <Text style={styles.fieldLabel}>Switch demo session</Text>

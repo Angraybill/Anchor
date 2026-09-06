@@ -93,6 +93,10 @@ export class DemoAnchorClient implements AnchorClient {
     );
   }
 
+  snapshotOffers(): RouteOffer[] {
+    return clone(this.state.offers);
+  }
+
   snapshotOffer(offerId: OfferId): RouteOffer {
     return clone(this.getOffer(offerId));
   }
