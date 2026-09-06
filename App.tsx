@@ -19,7 +19,7 @@ import {
   type StudentId,
   type ZoneId,
 } from "./src/lib/contracts";
-import { MAYA_ID, SAM_ID } from "./src/lib/demo-fixtures";
+import { JORDAN_ID, MAYA_ID, SAM_ID } from "./src/lib/demo-fixtures";
 import {
   joinRide,
   listOpenRides,
@@ -270,6 +270,7 @@ export default function App() {
         {tab === "plan" && <OfferRide onPosted={createOffer} />}
         {tab === "profile" && (
           <Profile
+            actor={actor}
             onChange={(id) => {
               demoClient.setDemoActor(id);
               setMessage(
@@ -361,7 +362,7 @@ function Home({
         <Action
           icon="search"
           title="Find a ride"
-          body={`${matches.filter((m) => m.state === "candidate").length} compatible options`}
+          body="Join an open seat"
           onPress={onFind}
         />
         <Action
@@ -382,8 +383,8 @@ function Home({
         />
         <Step
           n="02"
-          title="Choose together"
-          body="Details stay private until both students accept."
+          title="Join an open seat"
+          body="Tap join to claim an available seat immediately."
         />
         <Step
           n="03"
@@ -676,7 +677,19 @@ function OfferRide({
     </>
   );
 }
-function Profile({ onChange }: { onChange: (id: StudentId) => void }) {
+function Profile({
+  actor,
+  onChange,
+}: {
+  actor: { id: StudentId; displayName: string };
+  onChange: (id: StudentId) => void;
+}) {
+  const demoStudents = [
+    { id: JORDAN_ID, displayName: "Jordan" },
+    { id: MAYA_ID, displayName: "Maya" },
+    { id: SAM_ID, displayName: "Sam" },
+  ];
+
   return (
     <>
       <View style={styles.pageHeading}>
@@ -685,9 +698,9 @@ function Profile({ onChange }: { onChange: (id: StudentId) => void }) {
       </View>
       <View style={styles.profileCard}>
         <View style={styles.bigAvatar}>
-          <Text style={styles.bigAvatarText}>J</Text>
+          <Text style={styles.bigAvatarText}>{actor.displayName[0]}</Text>
         </View>
-        <Text style={styles.profileName}>Jordan</Text>
+        <Text style={styles.profileName}>{actor.displayName}</Text>
         <Text style={styles.verified}>Ride backend demo</Text>
       </View>
       <View style={styles.formCard}>
@@ -695,16 +708,14 @@ function Profile({ onChange }: { onChange: (id: StudentId) => void }) {
         <Text style={styles.helper}>
           Use this to demonstrate the driver and rider sides of the ride flow.
         </Text>
-        {["student-jordan", MAYA_ID, SAM_ID].map((id) => (
+        {demoStudents.map((student) => (
           <Pressable
-            key={id}
-            style={styles.choice}
-            onPress={() => onChange(id as StudentId)}
+            key={student.id}
+            style={[styles.choice, student.id === actor.id && styles.choiceActive]}
+            onPress={() => onChange(student.id)}
           >
-            <Text style={styles.choiceText}>
-              {id
-                .replace("student-", "")
-                .replace(/^./, (letter) => letter.toUpperCase())}
+            <Text style={[styles.choiceText, student.id === actor.id && styles.choiceTextActive]}>
+              {student.displayName}
             </Text>
             <Ionicons name="chevron-forward" size={16} color="#969993" />
           </Pressable>

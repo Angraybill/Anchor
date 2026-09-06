@@ -27,7 +27,7 @@ export type SupabaseDatabase = {
     };
     Functions: {
       join_ride: {
-        Args: { target_ride_id: string; requested_pickup_location: string };
+        Args: { target_ride_id: string; pickup_location: string };
         Returns: SupabaseDatabase["public"]["Tables"]["rides"]["Row"];
       };
     };
