@@ -170,7 +170,13 @@ export default function App() {
     [actor],
   );
   const matches = useMemo(
-    () => demoClient.snapshotMatches(requestId),
+    () =>
+      demoClient
+        .snapshotMatches(requestId)
+        .filter(
+          (match) =>
+            demoClient.snapshotRequest(match.requestId).riderId === actor.id,
+        ),
     [requestId, actor],
   );
   const demoOffers = useMemo(
@@ -482,6 +488,18 @@ function Home({
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Your rides</Text>
       </View>
+      <Text style={styles.subsectionTitle}>Driving</Text>
+      {offeredRideCount === 0 && (
+        <Text style={styles.emptySectionText}>None</Text>
+      )}
+      {offeredRides.map((offer) => (
+        <OfferedRideCard key={offer.id} offer={offer} />
+      ))}
+      {liveOfferedRides.map((ride) => (
+        <LiveRideCard key={`offered-${ride.id}`} ride={ride} role="offered" />
+      ))}
+
+      <Text style={styles.subsectionTitle}>Passenger</Text>
       {joinedRideCount === 0 && <Text style={styles.emptySectionText}>None</Text>}
       {matches.map((match) => (
         <MatchCard
@@ -501,18 +519,6 @@ function Home({
         />
       ))}
 
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Your offered rides</Text>
-      </View>
-      {offeredRideCount === 0 && (
-        <Text style={styles.emptySectionText}>None</Text>
-      )}
-      {offeredRides.map((offer) => (
-        <OfferedRideCard key={offer.id} offer={offer} />
-      ))}
-      {liveOfferedRides.map((ride) => (
-        <LiveRideCard key={`offered-${ride.id}`} ride={ride} role="offered" />
-      ))}
     </>
   );
 }
@@ -743,7 +749,7 @@ function OfferRide({
     time.setHours(6, 55, 0, 0);
     return time;
   });
-  const [seats, setSeats] = useState("1");
+  const [seats, setSeats] = useState("");
   const seatCount = Number(seats);
   const departureEnd = new Date(departureTime.getTime() + 10 * 60 * 1000);
   const canPost = Boolean(
@@ -845,7 +851,7 @@ function OfferRide({
         <TextInput
           value={seats}
           onChangeText={setSeats}
-          placeholder="1–4"
+          placeholder="e.g. 1, 2..."
           placeholderTextColor="#9BA19B"
           style={styles.input}
           keyboardType="number-pad"

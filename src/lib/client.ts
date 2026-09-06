@@ -93,6 +93,13 @@ export class DemoAnchorClient implements AnchorClient {
     );
   }
 
+  snapshotRequest(requestId: string): AnchorRequest {
+    const request = this.state.requests.find((item) => item.id === requestId);
+    if (!request)
+      throw new AnchorCommandError("NOT_FOUND", "Request not found.");
+    return clone(request);
+  }
+
   snapshotOffers(): RouteOffer[] {
     return clone(this.state.offers);
   }

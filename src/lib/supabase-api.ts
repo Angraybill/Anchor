@@ -23,10 +23,12 @@ async function requireCurrentUser() {
 }
 
 export async function listOpenRides(): Promise<Ride[]> {
-  const { data, error } = await requireSupabase()
+  const { client, user } = await requireCurrentUser();
+  const { data, error } = await client
     .from("rides")
     .select("*")
     .eq("status", "active")
+    .neq("driver_id", user.id)
     .gt("seats_open", 0)
     .order("departure_start");
   if (error) throw error;

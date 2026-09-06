@@ -89,6 +89,12 @@ export const styles = StyleSheet.create({
     marginTop: 8,
   },
   sectionTitle: { color: "#17201E", fontSize: 18, fontWeight: "800" },
+  subsectionTitle: {
+    color: "#17201E",
+    fontSize: 15,
+    fontWeight: "800",
+    marginBottom: 8,
+  },
   seeAll: { color: "#77817A", fontSize: 12 },
   emptySectionText: {
     color: "#737A73",
