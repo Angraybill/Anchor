@@ -19,7 +19,6 @@ import {
   type StudentId,
   type ZoneId,
 } from "./src/lib/contracts";
-import { JORDAN_ID, MAYA_ID, SAM_ID } from "./src/lib/demo-fixtures";
 import {
   joinRide,
   listOpenRides,
@@ -29,6 +28,7 @@ import {
 } from "./src/lib/supabase-api";
 import { supabase, type SupabaseDatabase } from "./src/lib/supabase";
 import Landing from "./src/screens/Landing";
+import ProfileSetup, { type StudentProfile } from "./src/screens/ProfileSetup";
 
 type Tab = "home" | "find" | "plan" | "profile";
 type OfferCardData = {
@@ -41,6 +41,7 @@ type OfferCardData = {
   seatsOpen: number;
 };
 type LiveRide = SupabaseDatabase["public"]["Tables"]["rides"]["Row"];
+type SavedProfile = StudentProfile;
 const requestId = "request-jordan-clinic";
 const zoneLabel: Record<ZoneId, string> = {
   "north-campus": "North Campus",
@@ -84,8 +85,30 @@ function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function savedProfileFromUser(user: { email?: string | null; user_metadata?: Record<string, unknown> }): SavedProfile | null {
+  const metadata = user.user_metadata ?? {};
+  const displayName = metadata.display_name;
+  const major = metadata.major;
+  const classYear = metadata.class_year;
+  const rideRole = metadata.ride_role;
+  if (
+    typeof user.email !== "string" ||
+    typeof displayName !== "string" ||
+    typeof major !== "string" ||
+    typeof classYear !== "string" ||
+    (rideRole !== "rider" && rideRole !== "driver" && rideRole !== "both")
+  ) {
+    return null;
+  }
+  return { displayName, email: user.email, major, classYear, rideRole };
+}
+
 export default function App() {
   const [authenticated, setAuthenticated] = useState(false);
+  const [profile, setProfile] = useState<SavedProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileResolved, setProfileResolved] = useState(false);
+  const [authEmail, setAuthEmail] = useState("");
   const [, refresh] = useState(0);
   const [tab, setTab] = useState<Tab>("home");
   const [message, setMessage] = useState(
@@ -105,7 +128,7 @@ export default function App() {
     [],
   );
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase || !authenticated) return;
     void (async () => {
       try {
         const [openRides, myRides] = await Promise.all([
@@ -120,7 +143,27 @@ export default function App() {
         );
       }
     })();
-  }, []);
+  }, [authenticated]);
+  useEffect(() => {
+    if (!authenticated || !supabase) return;
+    let active = true;
+    setProfileLoading(true);
+    void supabase.auth.getUser().then(({ data, error }) => {
+      if (!active) return;
+      if (error || !data.user) {
+        setAuthenticated(false);
+        setProfile(null);
+      } else {
+        setAuthEmail(data.user.email ?? "");
+        setProfile(savedProfileFromUser(data.user));
+      }
+      setProfileLoading(false);
+      setProfileResolved(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [authenticated]);
   const actor = demoClient.currentActor;
   const offeredRides = useMemo(
     () => demoClient.snapshotOffers().filter((offer) => offer.driverId === actor.id),
@@ -235,7 +278,7 @@ export default function App() {
   async function createOffer(input: CreateRouteOfferInput) {
     try {
       if (liveMode) {
-        const ride = await postCurrentRide(input);
+        const ride = await postCurrentRide(input, profile?.displayName);
         setLiveOffers((current) => [ride, ...current]);
         setLiveMyRides((current) => ({
           ...current,
@@ -285,9 +328,35 @@ export default function App() {
     }
   }
 
-  const displayName = actor.displayName;
+  const displayName = profile?.displayName ?? actor.displayName;
   if (!authenticated) {
-    return <Landing onAuthenticated={() => setAuthenticated(true)} />;
+    return <Landing onAuthenticated={() => {
+      setProfileResolved(false);
+      setAuthenticated(true);
+    }} />;
+  }
+  if (profileLoading || (supabase && !profileResolved)) {
+    return <SafeAreaView style={styles.safe} />;
+  }
+  const authClient = supabase;
+  if (authClient && !profile) {
+    return <ProfileSetup
+      email={authEmail || "your Cal Poly email"}
+      onSave={async (nextProfile) => {
+        const { data, error } = await authClient.auth.updateUser({
+          data: {
+            display_name: nextProfile.displayName,
+            major: nextProfile.major,
+            class_year: nextProfile.classYear,
+            ride_role: nextProfile.rideRole,
+          },
+        });
+        if (error) throw error;
+        const saved = savedProfileFromUser(data.user);
+        if (!saved) throw new Error("Your profile could not be saved. Please try again.");
+        setProfile(saved);
+      }}
+    />;
   }
 
   return (
@@ -332,12 +401,20 @@ export default function App() {
         {tab === "plan" && <OfferRide onPosted={createOffer} />}
         {tab === "profile" && (
           <Profile
-            actor={actor}
-            onChange={(id) => {
-              demoClient.setDemoActor(id);
-              setMessage(
-                `Now viewing the ${id.replace("student-", "")} demo session.`,
-              );
+            profile={profile ?? { displayName, email: "", major: "Not set", classYear: "Not set", rideRole: "both" }}
+            onLogout={async () => {
+              if (supabase) {
+                const { error } = await supabase.auth.signOut();
+                if (error) {
+                  setMessage(error.message);
+                  return;
+                }
+              }
+              setProfile(null);
+              setProfileResolved(false);
+              setAuthEmail("");
+              setAuthenticated(false);
+              setTab("home");
             }}
           />
         )}
@@ -796,30 +873,25 @@ function OfferRide({
 }
 
 function Profile({
-  actor,
-  onChange,
+  profile,
+  onLogout,
 }: {
-  actor: { id: StudentId; displayName: string };
-  onChange: (id: StudentId) => void;
+  profile: SavedProfile;
+  onLogout: () => Promise<void>;
 }) {
-  const profile = getDemoProfile(actor.id);
-  const demoStudents = [
-    { id: JORDAN_ID, displayName: "Jordan" },
-    { id: MAYA_ID, displayName: "Maya" },
-    { id: SAM_ID, displayName: "Sam" },
-  ];
+  const roleLabel = profile.rideRole === "both" ? "Find and offer rides" : profile.rideRole === "driver" ? "Offer rides" : "Find rides";
 
   return (
     <>
       <View style={styles.pageHeading}>
         <Text style={styles.pageTitle}>Your profile</Text>
-        <Text style={styles.subtitle}>Demo details for the hackathon walkthrough</Text>
+        <Text style={styles.subtitle}>{profile.email}</Text>
       </View>
       <View style={styles.profileCard}>
         <View style={styles.bigAvatar}>
-          <Text style={styles.bigAvatarText}>{actor.displayName[0]}</Text>
+          <Text style={styles.bigAvatarText}>{profile.displayName[0]?.toUpperCase()}</Text>
         </View>
-        <Text style={styles.profileName}>{actor.displayName}</Text>
+        <Text style={styles.profileName}>{profile.displayName}</Text>
         <Text style={styles.verified}>✓ Verified Cal Poly student</Text>
         <View style={styles.profileStats}>
           <ProfileStat icon="school-outline" label="Major" value={profile.major} />
@@ -829,23 +901,14 @@ function Profile({
       <View style={styles.profileSectionCard}>
         <View style={styles.profileSectionHeader}>
           <View style={styles.profileSectionIcon}>
-            <Ionicons name={profile.vehicleIcon} size={19} color="#28584D" />
+            <Ionicons name={profile.rideRole === "driver" ? "car-outline" : "navigate-outline"} size={19} color="#28584D" />
           </View>
           <View style={styles.profileSectionCopy}>
-            <Text style={styles.profileSectionEyebrow}>{profile.rideRole}</Text>
-            <Text style={styles.profileSectionTitle}>{profile.vehicleTitle}</Text>
+            <Text style={styles.profileSectionEyebrow}>RIDE PREFERENCE</Text>
+            <Text style={styles.profileSectionTitle}>{roleLabel}</Text>
           </View>
         </View>
-        <Text style={styles.profileSectionBody}>{profile.vehicleDetail}</Text>
-        <View style={styles.preferenceDivider} />
-        <Text style={styles.preferenceLabel}>Ride preferences</Text>
-        <View style={styles.preferenceRow}>
-          {profile.preferences.map((preference) => (
-            <View key={preference} style={styles.preferenceChip}>
-              <Text style={styles.preferenceChipText}>{preference}</Text>
-            </View>
-          ))}
-        </View>
+        <Text style={styles.profileSectionBody}>Your profile is connected to your signed-in Cal Poly email, not a shared demo identity.</Text>
       </View>
       <View style={styles.profilePrivacyCard}>
         <Ionicons name="shield-checkmark-outline" size={19} color="#28584D" />
@@ -856,24 +919,10 @@ function Profile({
           </Text>
         </View>
       </View>
-      <View style={styles.formCard}>
-        <Text style={styles.fieldLabel}>Switch demo session</Text>
-        <Text style={styles.helper}>
-          Preview rider and driver views without editing another student's profile.
-        </Text>
-        {demoStudents.map((student) => (
-          <Pressable
-            key={student.id}
-            style={[styles.choice, student.id === actor.id && styles.choiceActive]}
-            onPress={() => onChange(student.id)}
-          >
-            <Text style={[styles.choiceText, student.id === actor.id && styles.choiceTextActive]}>
-              {student.displayName}
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color="#969993" />
-          </Pressable>
-        ))}
-      </View>
+      <Pressable style={styles.logoutButton} onPress={() => void onLogout()} accessibilityRole="button">
+        <Ionicons name="log-out-outline" size={18} color="#9B5D4E" />
+        <Text style={styles.logoutButtonText}>Log out</Text>
+      </Pressable>
     </>
   );
 }
@@ -895,42 +944,6 @@ function ProfileStat({
       <Text style={styles.profileStatValue}>{value}</Text>
     </View>
   );
-}
-
-function getDemoProfile(studentId: StudentId) {
-  if (studentId === MAYA_ID) {
-    return {
-      major: "Environmental Engineering",
-      classYear: "2026",
-      rideRole: "DRIVER PROFILE",
-      vehicleTitle: "2019 Subaru Crosstrek",
-      vehicleDetail: "Up to 3 passengers with small bags. Voluntary campus and SLO routes only.",
-      vehicleIcon: "car-sport-outline" as const,
-      preferences: ["Quiet ride", "Small bags", "On-time"],
-    };
-  }
-
-  if (studentId === SAM_ID) {
-    return {
-      major: "Computer Science",
-      classYear: "2027",
-      rideRole: "DRIVER PROFILE",
-      vehicleTitle: "2020 Toyota Corolla",
-      vehicleDetail: "Up to 2 passengers with a small bag. Voluntary campus and SLO routes only.",
-      vehicleIcon: "car-sport-outline" as const,
-      preferences: ["Conversation optional", "Small bags", "On-time"],
-    };
-  }
-
-  return {
-    major: "Biomedical Engineering",
-    classYear: "2027",
-    rideRole: "RIDER PROFILE",
-    vehicleTitle: "No vehicle listed",
-    vehicleDetail: "Looking for dependable rides around campus and San Luis Obispo.",
-    vehicleIcon: "walk-outline" as const,
-    preferences: ["Quiet ride", "On-time", "Backpack only"],
-  };
 }
 
 function Action({

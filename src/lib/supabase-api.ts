@@ -35,13 +35,14 @@ export async function listOpenRides(): Promise<Ride[]> {
 
 export async function postCurrentRide(
   input: CreateRouteOfferInput,
+  driverName = "Cal Poly driver",
 ): Promise<Ride> {
   const { client, user } = await requireCurrentUser();
   const { data, error } = await client
     .from("rides")
     .insert({
       driver_id: user.id,
-      driver_name: "Cal Poly driver",
+      driver_name: driverName,
       origin_location: input.originLocation,
       destination_location: input.destinationLocation,
       departure_start: input.departureStart,

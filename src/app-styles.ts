@@ -324,6 +324,18 @@ export const styles = StyleSheet.create({
   profilePrivacyCopy: { flex: 1 },
   profilePrivacyTitle: { color: "#28584D", fontSize: 13, fontWeight: "800" },
   profilePrivacyBody: { color: "#52625A", fontSize: 12, lineHeight: 17, marginTop: 4 },
+  logoutButton: {
+    alignItems: "center",
+    borderColor: "#E2BBB3",
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+    marginBottom: 14,
+    paddingVertical: 13,
+  },
+  logoutButtonText: { color: "#9B5D4E", fontSize: 13, fontWeight: "800" },
   empty: {
     backgroundColor: "#FFF",
     borderRadius: 22,
