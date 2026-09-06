@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "Campus Ride",
+    "slug": "campus-ride",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "campusride",
+    "ios": { "supportsTablet": true },
+    "android": { "adaptiveIcon": { "backgroundColor": "#F4F1EB" } },
+    "web": { "bundler": "metro" }
+  }
+}

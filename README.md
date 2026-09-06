@@ -19,7 +19,9 @@ The app uses broad pickup and destination zones before a match. It is designed a
 ```bash
 npm install
 cp .env.example .env.local
-npm run dev
+npm start
 ```
 
-The implementation uses React, TypeScript, Vite, and Supabase. More detailed agent instructions are in [AGENTS.md](AGENTS.md).
+Scan the Expo QR code with Expo Go, or use `npm run ios`, `npm run android`, or `npm run web`. The current MVP uses a deterministic local demo client so the ride flow can be demonstrated before Supabase authentication and deployment are connected.
+
+The implementation uses Expo, React Native, TypeScript, and Supabase. More detailed agent instructions are in [AGENTS.md](AGENTS.md).

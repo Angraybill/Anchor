@@ -21,13 +21,13 @@ Use coarse zones before acceptance. Never expose home addresses, exact pickup de
 
 ### Person 1 — Experience
 
-Own the app shell, navigation, styles, responsive layout, reusable UI components, loading/empty/error states, and visual polish.
+Own the Expo app shell, tab navigation, React Native styles, reusable UI components, loading/empty/error states, and visual polish.
 
 Build the dashboard, deadline cards, route cards, match timeline, Rescue banner, pickup card, and all major trip states.
 
 Do not change Supabase setup, migrations, policies, authentication, shared contracts, or matching logic.
 
-Check mobile and desktop layouts, keyboard navigation, focus states, contrast, and reduced motion.
+Check iOS and Android layouts, touch targets, contrast, safe areas, and reduced motion where supported. Expo web is useful as a preview but is not the primary product target.
 
 ### Person 2 — Rider and driver flow
 
@@ -64,4 +64,4 @@ Ensure users can access only their community’s data and that pickup details ar
 
 ## Before handing off
 
-Run the available typecheck, tests, build, and audit. Test the two-person acceptance flow, final-seat concurrency, pickup privacy/expiry, cancellation Rescue, mobile/desktop layouts, keyboard navigation, and error states. Report checks that were not run.
+Run the available typecheck, tests, Expo bundle, and audit. Test the two-person acceptance flow, final-seat concurrency, pickup privacy/expiry, cancellation Rescue, iOS/Android layouts, touch states, and error states. Report checks that were not run.
