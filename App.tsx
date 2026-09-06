@@ -145,9 +145,7 @@ export default function App() {
       setLiveOffers(openRides);
       setLiveMyRides(myRides);
     } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Could not load rides.",
-      );
+      setMessage(errorMessage(error, "Could not load rides."));
     }
   }, [authenticated]);
   useEffect(() => {
