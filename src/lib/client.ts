@@ -9,6 +9,7 @@ import {
   type Match,
   type MatchEvent,
   type MatchId,
+  type OfferId,
   type PickupReveal,
   type ReportReceipt,
   type RouteOffer,
@@ -64,6 +65,20 @@ export class DemoAnchorClient implements AnchorClient {
     const actor = this.state.students.find((student) => student.id === this.actorId);
     if (!actor) throw new AnchorCommandError("UNAUTHORIZED", "The selected demo student is unavailable.");
     return clone(actor);
+  }
+
+  snapshotMatches(requestId: string): Match[] {
+    return clone(this.state.matches.filter((match) => match.requestId === requestId));
+  }
+
+  snapshotOffer(offerId: OfferId): RouteOffer {
+    return clone(this.getOffer(offerId));
+  }
+
+  snapshotStudent(studentId: StudentId): Student {
+    const student = this.state.students.find((item) => item.id === studentId);
+    if (!student) throw new AnchorCommandError("NOT_FOUND", "Student not found.");
+    return clone(student);
   }
 
   setDemoActor(studentId: StudentId): void {
