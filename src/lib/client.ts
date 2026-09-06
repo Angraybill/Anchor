@@ -44,6 +44,10 @@ type DemoState = {
 const clone = <T,>(value: T): T => structuredClone(value);
 const isoNow = () => new Date().toISOString();
 const fixtureExpiry = "2099-09-06T08:15:00.000Z";
+const randomId = () => {
+  if (typeof globalThis.crypto?.randomUUID === "function") return globalThis.crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+};
 
 function isZone(value: string): value is ZoneId {
   return (zoneIds as readonly string[]).includes(value);
@@ -99,7 +103,7 @@ export class DemoAnchorClient implements AnchorClient {
     this.validateOfferInput(input);
     const offer: RouteOffer = {
       ...clone(input),
-      id: `offer-${crypto.randomUUID()}` as RouteOffer["id"],
+      id: `offer-${randomId()}` as RouteOffer["id"],
       driverId: this.actorId,
       communityId: this.currentActor.communityId,
       status: "active"
@@ -109,12 +113,51 @@ export class DemoAnchorClient implements AnchorClient {
     return clone(offer);
   }
 
+  listOpenOffers(): RouteOffer[] {
+    return clone(this.state.offers.filter((offer) => offer.status === "active" && offer.seatsOpen > 0));
+  }
+
+  async joinRouteOffer(offerId: OfferId, pickupLocation: string): Promise<Match> {
+    this.requireVerifiedActor();
+    const offer = this.getOffer(offerId);
+    if (offer.driverId === this.actorId) throw new AnchorCommandError("VALIDATION", "You cannot join your own ride.");
+    if (!this.offerIsEligible(offerId)) throw new AnchorCommandError("NO_SEAT", "That ride no longer has an open seat.");
+    if (!pickupLocation.trim()) throw new AnchorCommandError("VALIDATION", "Add a pickup location.");
+    const request = await this.createAnchorRequest({
+      pickupZone: offer.originZone,
+      pickupLocation: pickupLocation.trim(),
+      destinationZone: offer.destinationZone,
+      destinationLocation: offer.destinationLocation,
+      arriveBy: offer.departureEnd,
+      flexibilityMinutes: 15,
+      preferences: offer.preferenceTags
+    });
+    const match: Match = {
+      id: `match-${randomId()}` as MatchId,
+      offerId,
+      requestId: request.id,
+      state: "confirmed",
+      arrivalSlackMinutes: 15,
+      detourMinutes: offer.maxDetourMinutes,
+      explanation: [{ kind: "detour", text: `${offer.maxDetourMinutes}-minute maximum detour.` }],
+      expiresAt: fixtureExpiry
+    };
+    offer.seatsOpen -= 1;
+    if (offer.seatsOpen === 0) offer.status = "full";
+    request.status = "confirmed";
+    this.state.matches.push(match);
+    this.state.pickupReveals.push({ matchId: match.id, publicLandmark: `${offer.originLocation} public entrance`, visibleAfter: isoNow(), expiresAt: fixtureExpiry });
+    this.addEvent(match.id, "rider_accepted");
+    this.notify();
+    return clone(match);
+  }
+
   async createAnchorRequest(input: CreateAnchorRequestInput): Promise<AnchorRequest> {
     this.requireVerifiedActor();
     this.validateRequestInput(input);
     const request: AnchorRequest = {
       ...clone(input),
-      id: `request-${crypto.randomUUID()}` as AnchorRequest["id"],
+      id: `request-${randomId()}` as AnchorRequest["id"],
       riderId: this.actorId,
       communityId: this.currentActor.communityId,
       status: "open"
@@ -226,7 +269,7 @@ export class DemoAnchorClient implements AnchorClient {
     if (!this.isParticipant(match)) throw new AnchorCommandError("UNAUTHORIZED", "Only a participant can report a match.");
     this.addEvent(match.id, "reported");
     this.notify();
-    return { id: `report-${crypto.randomUUID()}` as ReportReceipt["id"], createdAt: isoNow() };
+    return { id: `report-${randomId()}` as ReportReceipt["id"], createdAt: isoNow() };
   }
 
   private getOffer(id: RouteOffer["id"]): RouteOffer {
@@ -265,6 +308,9 @@ export class DemoAnchorClient implements AnchorClient {
   }
 
   private validateOfferInput(input: CreateRouteOfferInput): void {
+    if (!input.originLocation.trim() || !input.destinationLocation.trim()) {
+      throw new AnchorCommandError("VALIDATION", "Add a pickup and destination location.");
+    }
     if (!isZone(input.originZone) || !isZone(input.destinationZone) || input.originZone === input.destinationZone) {
       throw new AnchorCommandError("VALIDATION", "Choose two different supported route zones.");
     }
@@ -277,6 +323,9 @@ export class DemoAnchorClient implements AnchorClient {
   }
 
   private validateRequestInput(input: CreateAnchorRequestInput): void {
+    if (!input.pickupLocation.trim() || !input.destinationLocation.trim()) {
+      throw new AnchorCommandError("VALIDATION", "Add a pickup and destination location.");
+    }
     if (!isZone(input.pickupZone) || !isZone(input.destinationZone) || input.pickupZone === input.destinationZone) {
       throw new AnchorCommandError("VALIDATION", "Choose two different supported request zones.");
     }
@@ -287,7 +336,7 @@ export class DemoAnchorClient implements AnchorClient {
   }
 
   private addEvent(matchId: MatchId, type: MatchEvent["type"]): void {
-    this.state.events.push({ id: crypto.randomUUID(), matchId, actorId: this.actorId, type, createdAt: isoNow() });
+    this.state.events.push({ id: randomId(), matchId, actorId: this.actorId, type, createdAt: isoNow() });
   }
 
   private notify(): void {

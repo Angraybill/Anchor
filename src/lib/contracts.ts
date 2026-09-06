@@ -33,7 +33,9 @@ export type RouteOffer = {
   driverId: StudentId;
   communityId: string;
   originZone: ZoneId;
+  originLocation: string;
   destinationZone: ZoneId;
+  destinationLocation: string;
   departureStart: string;
   departureEnd: string;
   seatsOpen: number;
@@ -47,7 +49,9 @@ export type AnchorRequest = {
   riderId: StudentId;
   communityId: string;
   pickupZone: ZoneId;
+  pickupLocation: string;
   destinationZone: ZoneId;
+  destinationLocation: string;
   arriveBy: string;
   flexibilityMinutes: number;
   preferences: PreferenceTag[];
@@ -109,6 +113,8 @@ export interface AnchorClient {
   readonly currentActor: Student;
   setDemoActor(studentId: StudentId): void;
   createRouteOffer(input: CreateRouteOfferInput): Promise<RouteOffer>;
+  listOpenOffers(): RouteOffer[];
+  joinRouteOffer(offerId: OfferId, pickupLocation: string): Promise<Match>;
   createAnchorRequest(input: CreateAnchorRequestInput): Promise<AnchorRequest>;
   listCandidates(requestId: RequestId): Promise<Match[]>;
   offerSeat(matchId: MatchId): Promise<Match>;

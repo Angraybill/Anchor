@@ -6,13 +6,12 @@ It helps students find voluntary rides to important, time-sensitive commitments 
 
 ## How it works
 
-1. A rider posts where they need to go and when they need to arrive.
-2. A student who is already driving that direction offers an open seat.
-3. Both students accept before the ride is confirmed.
-4. The app reveals a public pickup landmark.
-5. If the driver cancels, the rider can look for another compatible offer.
+1. A student who is already driving a route posts an open seat and broad locations.
+2. Riders browse the available rides and join one that fits their trip.
+3. The app records the rider and driver match and reveals a public pickup landmark.
+4. If the driver cancels, the rider can look for another compatible offer.
 
-The app uses broad pickup and destination zones before a match. It is designed around planned voluntary carpools, not instant rides, payments, or gig driving.
+The app lets drivers and riders type recognizable location names, while using broad pickup and destination zones for matching and privacy. It is designed around planned voluntary carpools, not instant rides, payments, or gig driving.
 
 ## Local development
 
