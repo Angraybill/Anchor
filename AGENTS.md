@@ -8,12 +8,11 @@ PolyPassenger helps verified Cal Poly students coordinate voluntary rides to fix
 
 The core flow is:
 
-1. A rider creates a trip with pickup zone, destination zone, and arrival deadline.
-2. A driver offers an existing route with an open seat.
-3. The rider and driver both accept.
-4. A public pickup landmark is revealed.
-5. If the driver cancels, the rider can receive a compatible replacement offer.
-6. The rider and driver check in and complete the trip.
+1. A driver creates a ride offer with typed pickup and destination names, broad zones, departure time, and open seats.
+2. A rider browses available ride offers and joins one; riders do not publish public ride requests.
+3. A public pickup landmark is revealed to the matched participants.
+4. If the driver cancels, the rider can receive a compatible replacement offer.
+5. The rider and driver check in and complete the trip.
 
 Use coarse zones before acceptance. Never expose home addresses, exact pickup details, phone numbers, or live location to candidates.
 
@@ -29,11 +28,11 @@ Do not change Supabase setup, migrations, policies, authentication, shared contr
 
 Check iOS and Android layouts, touch targets, contrast, safe areas, and reduced motion where supported. Expo web is useful as a preview but is not the primary product target.
 
-### Person 2 — Rider and driver flow
+### Person 2 — Driver offers and rider browsing
 
-Own rider trip forms, driver route forms, candidate presentation, validation, fixture matching, and related tests.
+Own driver ride-offer forms, rider browsing/joining, location suggestions, validation, fixture matching, and related tests.
 
-Build fields for zones, arrival deadlines, departure windows, flexibility, seats, detour limits, and ride preferences. Show why a candidate fits using arrival slack and estimated detour.
+Build fields for typed locations, broad zones, departure windows, seats, detour limits, and ride preferences. Show why an open ride fits using departure timing and estimated detour.
 
 Reject empty or unsupported zones, past deadlines, invalid time windows, negative flexibility, and invalid seat counts. Use shared client adapters; do not write Supabase tables directly from components.
 
