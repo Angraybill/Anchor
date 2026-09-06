@@ -551,7 +551,7 @@ function OpenOfferCard({
         })}{" "}
       </Text>
       <Pressable
-        style={styles.darkButtonSmall}
+        style={[styles.darkButtonSmall, styles.joinButton]}
         onPress={() => onJoin(offer.id)}
       >
         <Text style={styles.darkButtonText}>Join this ride</Text>
@@ -657,7 +657,7 @@ function OfferRide({
 }: {
   onPosted: (input: CreateRouteOfferInput) => void | Promise<void>;
 }) {
-  const [origin, setOrigin] = useState("North Campus");
+  const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [posting, setPosting] = useState(false);
   const [departureTime, setDepartureTime] = useState(() => {
@@ -711,7 +711,7 @@ function OfferRide({
         <TextInput
           value={origin}
           onChangeText={setOrigin}
-          placeholder="e.g. my apartment, campus..."
+          placeholder="e.g. Vista Grande, NoMo..."
           placeholderTextColor="#9BA19B"
           style={styles.input}
         />
@@ -719,7 +719,7 @@ function OfferRide({
         <TextInput
           value={destination}
           onChangeText={setDestination}
-          placeholder="e.g. SLO Airport, internship..."
+          placeholder="e.g. Pismo In-N-Out, SLO Airport..."
           placeholderTextColor="#9BA19B"
           style={styles.input}
         />
@@ -794,6 +794,7 @@ function OfferRide({
     </>
   );
 }
+
 function Profile({
   actor,
   onChange,

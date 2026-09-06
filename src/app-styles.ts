@@ -80,6 +80,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 14,
     alignItems: "center",
   },
+  joinButton: { marginTop: 16 },
   darkButtonText: { color: "#FFF", fontSize: 12, fontWeight: "800" },
   sectionHeader: {
     flexDirection: "row",
