@@ -2,6 +2,8 @@ import { requireSupabase, type SupabaseDatabase } from "./supabase";
 import type { CreateRouteOfferInput } from "./contracts";
 
 type Ride = SupabaseDatabase["public"]["Tables"]["rides"]["Row"];
+type JoinedRideRow =
+  SupabaseDatabase["public"]["Functions"]["list_my_joined_rides"]["Returns"][number];
 
 export type JoinedRide = {
   ride: Ride;
@@ -145,27 +147,30 @@ export async function listMyRides(): Promise<MyRides> {
       .eq("driver_id", user.id)
       .in("status", ["active", "full"])
       .order("departure_start"),
-    client
-      .from("ride_passengers")
-      .select("ride_id, pickup_location, joined_at, ride:rides(*)")
-      .eq("rider_id", user.id)
-      .order("joined_at", { ascending: false }),
+    client.rpc("list_my_joined_rides"),
   ]);
 
   if (offeredResult.error) throw offeredResult.error;
   if (joinedResult.error) throw joinedResult.error;
 
-  const joined = (joinedResult.data ?? []).flatMap((row) => {
-    const ride = row.ride as unknown as Ride | null;
-    if (!ride) return [];
-    return [
-      {
-        ride,
-        pickupLocation: row.pickup_location as string,
-        joinedAt: row.joined_at as string,
-      },
-    ];
-  });
+  const joined = ((joinedResult.data ?? []) as JoinedRideRow[]).map((row) => ({
+    ride: {
+      id: row.id,
+      driver_id: row.driver_id,
+      driver_name: row.driver_name,
+      origin_location: row.origin_location,
+      destination_location: row.destination_location,
+      departure_start: row.departure_start,
+      departure_end: row.departure_end,
+      seats_open: row.seats_open,
+      max_detour_minutes: row.max_detour_minutes,
+      status: row.status,
+      created_at: row.created_at,
+      cost_cents: row.cost_cents,
+    },
+    pickupLocation: row.pickup_location,
+    joinedAt: row.joined_at,
+  }));
 
   return {
     offered: (offeredResult.data ?? []) as Ride[],

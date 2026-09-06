@@ -152,14 +152,16 @@ export default function App() {
         listMyRides(),
         listPublicRideRequests(),
       ]);
-      const joinedRideIds = new Set(myRides.joined.map((joined) => joined.ride.id));
-      setLiveOffers(openRides.filter((ride) => !joinedRideIds.has(ride.id)));
+      const joinedRideIds = new Set(
+        myRides.joined.map((joined) => joined.ride.id),
+      );
+      setLiveOffers(
+        openRides.filter((ride) => !joinedRideIds.has(ride.id)),
+      );
       setLiveMyRides(myRides);
       setPublicRequests(requests);
     } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Could not load rides.",
-      );
+      setMessage(errorMessage(error, "Could not load rides."));
     }
   }, [authenticated]);
   useEffect(() => {
@@ -382,9 +384,7 @@ export default function App() {
       setTab("home");
       setMessage("You joined the ride. Pickup is set to the listed departure location.");
     } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Could not join this ride.",
-      );
+      setMessage(errorMessage(error, "Could not join this ride."));
     }
   }
 
