@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Pressable,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -114,6 +115,7 @@ export default function App() {
   const [message, setMessage] = useState(
     "PolyPassenger is ready for your next trip.",
   );
+  const [refreshing, setRefreshing] = useState(false);
   const [requestId, setRequestId] = useState("request-jordan-clinic");
   const [liveOffers, setLiveOffers] = useState<
     SupabaseDatabase["public"]["Tables"]["rides"]["Row"][]
@@ -127,23 +129,34 @@ export default function App() {
     () => demoClient.subscribe(() => refresh((value) => value + 1)),
     [],
   );
-  useEffect(() => {
+  const loadLiveRides = useCallback(async () => {
     if (!supabase || !authenticated) return;
-    void (async () => {
-      try {
-        const [openRides, myRides] = await Promise.all([
-          listOpenRides(),
-          listMyRides(),
-        ]);
-        setLiveOffers(openRides);
-        setLiveMyRides(myRides);
-      } catch (error) {
-        setMessage(
-          error instanceof Error ? error.message : "Could not load rides.",
-        );
-      }
-    })();
+    try {
+      const [openRides, myRides] = await Promise.all([
+        listOpenRides(),
+        listMyRides(),
+      ]);
+      setLiveOffers(openRides);
+      setLiveMyRides(myRides);
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Could not load rides.",
+      );
+    }
   }, [authenticated]);
+  useEffect(() => {
+    void loadLiveRides();
+  }, [loadLiveRides]);
+
+  async function refreshRides() {
+    setRefreshing(true);
+    try {
+      if (liveMode) await loadLiveRides();
+      else refresh((value) => value + 1);
+    } finally {
+      setRefreshing(false);
+    }
+  }
   useEffect(() => {
     if (!authenticated || !supabase) return;
     let active = true;
@@ -367,6 +380,15 @@ export default function App() {
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          tab === "home" || tab === "find" ? (
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => void refreshRides()}
+              tintColor="#31594C"
+            />
+          ) : undefined
+        }
       >
         <View style={styles.header}>
           <View>
