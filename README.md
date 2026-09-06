@@ -1,6 +1,6 @@
-# PolyPassenger
+# PolyPassengers
 
-PolyPassenger is a simple ride-coordination app for Cal Poly students.
+PolyPassengers is a simple ride-coordination app for Cal Poly students.
 
 It helps students find voluntary rides to important, time-sensitive commitments when they do not have a car or their original ride falls through. Examples include internships, clinical shifts, labs, airport departures, and late-night travel.
 
