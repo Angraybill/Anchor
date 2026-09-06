@@ -118,6 +118,7 @@ export default function App() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileResolved, setProfileResolved] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
+  const [authUserId, setAuthUserId] = useState("");
   const [editingProfile, setEditingProfile] = useState(false);
   const [, refresh] = useState(0);
   const [tab, setTab] = useState<Tab>("home");
@@ -180,8 +181,10 @@ export default function App() {
       if (error || !data.user) {
         setAuthenticated(false);
         setProfile(null);
+        setAuthUserId("");
       } else {
         setAuthEmail(data.user.email ?? "");
+        setAuthUserId(data.user.id);
         setProfile(savedProfileFromUser(data.user));
       }
       setProfileLoading(false);
@@ -496,6 +499,7 @@ export default function App() {
             <Find
               offers={openOffers}
               requests={liveMode ? publicRequests : []}
+              currentUserId={authUserId}
               onJoin={joinOffer}
               onRequest={() => setRequestingRide(true)}
               onOfferToDrive={(request) => {
@@ -528,6 +532,7 @@ export default function App() {
               setProfile(null);
               setProfileResolved(false);
               setAuthEmail("");
+              setAuthUserId("");
               setAuthenticated(false);
               setEditingProfile(false);
               setTab("home");
@@ -679,12 +684,14 @@ function LiveRideCard({
 function Find({
   offers,
   requests,
+  currentUserId,
   onJoin,
   onRequest,
   onOfferToDrive,
 }: {
   offers: OfferCardData[];
   requests: PublicRideRequest[];
+  currentUserId: string;
   onJoin: (offerId: OfferId) => void;
   onRequest: () => void;
   onOfferToDrive: (request: PublicRideRequest) => void;
@@ -722,7 +729,7 @@ function Find({
         <Text style={styles.sectionTitle}>Student ride requests</Text>
         <Text style={styles.seeAll}>Public areas only</Text>
       </View>
-      {requests.map((request) => <PublicRequestCard key={request.id} request={request} onOfferToDrive={onOfferToDrive} />)}
+      {requests.map((request) => <PublicRequestCard key={request.id} request={request} currentUserId={currentUserId} onOfferToDrive={onOfferToDrive} />)}
       {requests.length === 0 && <Text style={styles.emptySectionText}>No public ride requests yet.</Text>}
     </>
   );
@@ -808,15 +815,18 @@ function RequestRide({
 
 function PublicRequestCard({
   request,
+  currentUserId,
   onOfferToDrive,
 }: {
   request: PublicRideRequest;
+  currentUserId: string;
   onOfferToDrive: (request: PublicRideRequest) => void;
 }) {
   const arrival = new Date(request.arrive_by);
+  const isOwnRequest = request.rider_id === currentUserId;
   return (
     <View style={styles.matchCard}>
-      <Text style={styles.cardKicker}>RIDE REQUEST • PUBLIC LANDMARK</Text>
+      <Text style={styles.cardKicker}>{isOwnRequest ? "YOUR RIDE REQUEST" : "RIDE REQUEST • PUBLIC LANDMARK"}</Text>
       <Text style={styles.cardTitle}>A Cal Poly student needs a ride to {request.destination_label}</Text>
       <View style={styles.routeLine}>
         <Text style={styles.routeText}>{request.pickup_label}</Text>
@@ -825,9 +835,13 @@ function PublicRequestCard({
       </View>
       <Text style={styles.explanation}>Needs to arrive by {arrival.toLocaleDateString([], { month: "short", day: "numeric" })} at {arrival.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text>
       <Text style={styles.requestSafety}>No home addresses or contact details are shown.</Text>
-      <Pressable style={[styles.darkButtonSmall, styles.requestOfferButton]} onPress={() => onOfferToDrive(request)}>
-        <Text style={styles.darkButtonText}>Offer to drive</Text>
-      </Pressable>
+      {isOwnRequest ? (
+        <Text style={styles.requestOwnerNotice}>You cannot offer to drive your own request.</Text>
+      ) : (
+        <Pressable style={[styles.darkButtonSmall, styles.requestOfferButton]} onPress={() => onOfferToDrive(request)}>
+          <Text style={styles.darkButtonText}>Offer to drive</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
