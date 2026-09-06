@@ -285,7 +285,6 @@ export default function App() {
     try {
       if (liveMode) {
         const ride = await postCurrentRide(input, profile?.displayName);
-        setLiveOffers((current) => [ride, ...current]);
         setLiveMyRides((current) => ({
           ...current,
           offered: [ride, ...current.offered],
@@ -300,10 +299,9 @@ export default function App() {
   async function joinOffer(offerId: OfferId) {
     try {
       if (liveMode) {
-        const joinedRide = await joinRide(
-          offerId,
-          "North Campus Library entrance",
-        );
+        const ride = liveOffers.find((offer) => offer.id === offerId);
+        if (!ride) throw new Error("That ride is no longer available.");
+        const joinedRide = await joinRide(offerId, ride.origin_location);
         setLiveOffers((current) =>
           current.filter((offer) => offer.id !== offerId),
         );
@@ -312,21 +310,19 @@ export default function App() {
           joined: [
             {
               ride: joinedRide,
-              pickupLocation: "North Campus Library entrance",
+              pickupLocation: ride.origin_location,
               joinedAt: new Date().toISOString(),
             },
             ...current.joined.filter((joined) => joined.ride.id !== offerId),
           ],
         }));
       } else {
-        const match = await demoClient.joinRouteOffer(
-          offerId,
-          "North Campus Library entrance",
-        );
+        const offer = demoClient.snapshotOffer(offerId);
+        const match = await demoClient.joinRouteOffer(offerId, offer.originLocation);
         setRequestId(match.requestId);
       }
       setTab("home");
-      setMessage("You joined the ride. The public pickup landmark is ready.");
+      setMessage("You joined the ride. Pickup is set to the listed departure location.");
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Could not join this ride.",
@@ -704,7 +700,7 @@ function MatchCard({
         </Text>
       ))}
       {confirmed && (
-        <Text style={styles.pickup}>Pickup: North Campus Library entrance</Text>
+        <Text style={styles.pickup}>Pickup: {offer.originLocation}</Text>
       )}
       <View style={styles.cardActions}>
         {match.state === "candidate" && (

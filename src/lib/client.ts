@@ -202,7 +202,7 @@ export class DemoAnchorClient implements AnchorClient {
     this.state.matches.push(match);
     this.state.pickupReveals.push({
       matchId: match.id,
-      publicLandmark: `${offer.originLocation} public entrance`,
+      publicLandmark: pickupLocation.trim(),
       visibleAfter: isoNow(),
       expiresAt: fixtureExpiry,
     });

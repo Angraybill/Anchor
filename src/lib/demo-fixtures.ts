@@ -130,7 +130,7 @@ export const demoMatches: Match[] = [
 
 export const demoPickupReveal: PickupReveal = {
   matchId: MAYA_MATCH_ID,
-  publicLandmark: "North Campus Library entrance",
+  publicLandmark: "North Campus",
   visibleAfter: "2026-09-06T06:45:00-07:00",
   expiresAt: "2026-09-06T08:15:00-07:00",
 };
