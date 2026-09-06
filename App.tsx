@@ -152,7 +152,8 @@ export default function App() {
         listMyRides(),
         listPublicRideRequests(),
       ]);
-      setLiveOffers(openRides);
+      const joinedRideIds = new Set(myRides.joined.map((joined) => joined.ride.id));
+      setLiveOffers(openRides.filter((ride) => !joinedRideIds.has(ride.id)));
       setLiveMyRides(myRides);
       setPublicRequests(requests);
     } catch (error) {
