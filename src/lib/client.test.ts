@@ -4,16 +4,6 @@ import { DemoAnchorClient, demoIds } from "./client";
 import { JORDAN_ID, MAYA_ID, MAYA_OFFER_ID, SAM_ID } from "./demo-fixtures";
 
 describe("DemoAnchorClient", () => {
-  it("returns eligible fixture candidates and excludes the insufficient-slack driver", async () => {
-    const client = new DemoAnchorClient();
-    client.setDemoActor(JORDAN_ID);
-
-    const candidates = await client.listCandidates(demoIds.JORDAN_REQUEST_ID);
-
-    expect(candidates.map((candidate) => candidate.id)).toEqual([demoIds.MAYA_MATCH_ID, demoIds.SAM_MATCH_ID]);
-    expect(candidates.some((candidate) => candidate.explanation.some((reason) => reason.text.includes("Alex")))).toBe(false);
-  });
-
   it("requires a driver offer and rider acceptance before revealing pickup", async () => {
     const client = new DemoAnchorClient();
     client.setDemoActor(JORDAN_ID);
@@ -48,7 +38,7 @@ describe("DemoAnchorClient", () => {
     }
   });
 
-  it("turns cancellation into a rescue candidate without retaining the old pickup reveal", async () => {
+  it("releases a cancelled ride's seat without retaining the old pickup reveal", async () => {
     const client = new DemoAnchorClient();
     client.setDemoActor(MAYA_ID);
     await client.offerSeat(demoIds.MAYA_MATCH_ID);
@@ -56,11 +46,12 @@ describe("DemoAnchorClient", () => {
     await client.acceptRide(demoIds.MAYA_MATCH_ID);
     client.setDemoActor(MAYA_ID);
 
-    const rescue = await client.cancelMatch(demoIds.MAYA_MATCH_ID, "vehicle_issue");
+    const cancelled = await client.cancelMatch(demoIds.MAYA_MATCH_ID, "vehicle_issue");
+    const offer = client.snapshotOffer(MAYA_OFFER_ID);
 
-    expect(rescue.match.state).toBe("cancelled");
-    expect(rescue.rescueStatus).toBe("rematched");
-    expect(rescue.rescueCandidates.map((candidate) => candidate.id)).toEqual([demoIds.SAM_MATCH_ID]);
+    expect(cancelled.state).toBe("cancelled");
+    expect(offer.seatsOpen).toBe(1);
+    expect(offer.status).toBe("active");
     client.setDemoActor(JORDAN_ID);
     await expect(client.getPickupReveal(demoIds.MAYA_MATCH_ID)).resolves.toBeNull();
   });
@@ -72,7 +63,7 @@ describe("DemoAnchorClient", () => {
     await expect(client.offerSeat(demoIds.MAYA_MATCH_ID)).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
-  it("lets a rider join an open driver offer without publishing a ride request", async () => {
+  it("lets a rider join an open driver offer", async () => {
     const client = new DemoAnchorClient();
     client.setDemoActor(JORDAN_ID);
 
@@ -84,5 +75,6 @@ describe("DemoAnchorClient", () => {
     await expect(client.getPickupReveal(joined.id)).resolves.toMatchObject({
       publicLandmark: "North Campus public entrance"
     });
+    expect(client.snapshotCommittedRiders(MAYA_OFFER_ID).map((rider) => rider.displayName)).toEqual(["Jordan"]);
   });
 });

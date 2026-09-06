@@ -1,11 +1,10 @@
-import type { AnchorRequest, Match, PickupReveal, RouteOffer, Student } from "./contracts";
+import type { Match, PickupReveal, RouteOffer, Student } from "./contracts";
 
 export const DEMO_COMMUNITY_ID = "community-poly-passenger";
 export const JORDAN_ID = "student-jordan" as const;
 export const MAYA_ID = "student-maya" as const;
 export const SAM_ID = "student-sam" as const;
 export const ALEX_ID = "student-alex" as const;
-export const JORDAN_REQUEST_ID = "request-jordan-clinic" as const;
 export const MAYA_OFFER_ID = "offer-maya-downtown" as const;
 export const SAM_OFFER_ID = "offer-sam-downtown" as const;
 export const MAYA_MATCH_ID = "match-maya-jordan" as const;
@@ -30,9 +29,7 @@ export const demoOffers: RouteOffer[] = [
     departureStart: "2026-09-06T06:55:00-07:00",
     departureEnd: "2026-09-06T07:05:00-07:00",
     seatsOpen: 1,
-    maxDetourMinutes: 8,
-    status: "active",
-    preferenceTags: ["quiet_ride"]
+    status: "active"
   },
   {
     id: SAM_OFFER_ID,
@@ -45,25 +42,7 @@ export const demoOffers: RouteOffer[] = [
     departureStart: "2026-09-06T07:05:00-07:00",
     departureEnd: "2026-09-06T07:10:00-07:00",
     seatsOpen: 1,
-    maxDetourMinutes: 10,
-    status: "active",
-    preferenceTags: ["quiet_ride", "small_bag"]
-  }
-];
-
-export const demoRequests: AnchorRequest[] = [
-  {
-    id: JORDAN_REQUEST_ID,
-    riderId: JORDAN_ID,
-    communityId: DEMO_COMMUNITY_ID,
-    pickupZone: "north-campus",
-    pickupLocation: "North Campus",
-    destinationZone: "downtown",
-    destinationLocation: "Downtown SLO",
-    arriveBy: "2026-09-06T07:45:00-07:00",
-    flexibilityMinutes: 15,
-    preferences: ["quiet_ride"],
-    status: "open"
+    status: "active"
   }
 ];
 
@@ -71,27 +50,15 @@ export const demoMatches: Match[] = [
   {
     id: MAYA_MATCH_ID,
     offerId: MAYA_OFFER_ID,
-    requestId: JORDAN_REQUEST_ID,
+    riderId: JORDAN_ID,
     state: "candidate",
-    arrivalSlackMinutes: 22,
-    detourMinutes: 6,
-    explanation: [
-      { kind: "arrival_slack", text: "Arrives 22 minutes before your deadline." },
-      { kind: "detour", text: "Estimated 6-minute detour." }
-    ],
     expiresAt: "2026-09-06T06:50:00-07:00"
   },
   {
     id: SAM_MATCH_ID,
     offerId: SAM_OFFER_ID,
-    requestId: JORDAN_REQUEST_ID,
+    riderId: JORDAN_ID,
     state: "candidate",
-    arrivalSlackMinutes: 9,
-    detourMinutes: 4,
-    explanation: [
-      { kind: "arrival_slack", text: "Still arrives 9 minutes before your deadline." },
-      { kind: "detour", text: "Estimated 4-minute detour." }
-    ],
     expiresAt: "2026-09-06T07:00:00-07:00"
   }
 ];
