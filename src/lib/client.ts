@@ -17,7 +17,7 @@ import {
   type Student,
   type StudentId,
   type ZoneId,
-  zoneIds
+  zoneIds,
 } from "./contracts";
 import {
   DEMO_COMMUNITY_ID,
@@ -29,7 +29,7 @@ import {
   demoOffers,
   demoPickupReveal,
   demoRequests,
-  demoStudents
+  demoStudents,
 } from "./demo-fixtures";
 
 type DemoState = {
@@ -41,11 +41,12 @@ type DemoState = {
   pickupReveals: PickupReveal[];
 };
 
-const clone = <T,>(value: T): T => structuredClone(value);
+const clone = <T>(value: T): T => structuredClone(value);
 const isoNow = () => new Date().toISOString();
 const fixtureExpiry = "2099-09-06T08:15:00.000Z";
 const randomId = () => {
-  if (typeof globalThis.crypto?.randomUUID === "function") return globalThis.crypto.randomUUID();
+  if (typeof globalThis.crypto?.randomUUID === "function")
+    return globalThis.crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 };
 
@@ -60,19 +61,40 @@ export class DemoAnchorClient implements AnchorClient {
     students: clone(demoStudents),
     offers: clone(demoOffers),
     requests: clone(demoRequests),
-    matches: clone(demoMatches).map((match) => ({ ...match, expiresAt: fixtureExpiry })),
+    matches: clone(demoMatches).map((match) => ({
+      ...match,
+      expiresAt: fixtureExpiry,
+    })),
     events: [],
-    pickupReveals: [{ ...clone(demoPickupReveal), visibleAfter: isoNow(), expiresAt: fixtureExpiry }]
+    pickupReveals: [
+      {
+        ...clone(demoPickupReveal),
+        visibleAfter: isoNow(),
+        expiresAt: fixtureExpiry,
+      },
+    ],
   };
 
   get currentActor(): Student {
-    const actor = this.state.students.find((student) => student.id === this.actorId);
-    if (!actor) throw new AnchorCommandError("UNAUTHORIZED", "The selected demo student is unavailable.");
+    const actor = this.state.students.find(
+      (student) => student.id === this.actorId,
+    );
+    if (!actor)
+      throw new AnchorCommandError(
+        "UNAUTHORIZED",
+        "The selected demo student is unavailable.",
+      );
     return clone(actor);
   }
 
   snapshotMatches(requestId: string): Match[] {
-    return clone(this.state.matches.filter((match) => match.requestId === requestId));
+    return clone(
+      this.state.matches.filter((match) => match.requestId === requestId),
+    );
+  }
+
+  snapshotOffers(): RouteOffer[] {
+    return clone(this.state.offers);
   }
 
   snapshotOffer(offerId: OfferId): RouteOffer {
@@ -81,13 +103,17 @@ export class DemoAnchorClient implements AnchorClient {
 
   snapshotStudent(studentId: StudentId): Student {
     const student = this.state.students.find((item) => item.id === studentId);
-    if (!student) throw new AnchorCommandError("NOT_FOUND", "Student not found.");
+    if (!student)
+      throw new AnchorCommandError("NOT_FOUND", "Student not found.");
     return clone(student);
   }
 
   setDemoActor(studentId: StudentId): void {
     if (!this.state.students.some((student) => student.id === studentId)) {
-      throw new AnchorCommandError("UNAUTHORIZED", "This demo account does not exist.");
+      throw new AnchorCommandError(
+        "UNAUTHORIZED",
+        "This demo account does not exist.",
+      );
     }
     this.actorId = studentId;
     this.notify();
@@ -106,7 +132,7 @@ export class DemoAnchorClient implements AnchorClient {
       id: `offer-${randomId()}` as RouteOffer["id"],
       driverId: this.actorId,
       communityId: this.currentActor.communityId,
-      status: "active"
+      status: "active",
     };
     this.state.offers.push(offer);
     this.notify();
@@ -114,15 +140,31 @@ export class DemoAnchorClient implements AnchorClient {
   }
 
   listOpenOffers(): RouteOffer[] {
-    return clone(this.state.offers.filter((offer) => offer.status === "active" && offer.seatsOpen > 0));
+    return clone(
+      this.state.offers.filter(
+        (offer) => offer.status === "active" && offer.seatsOpen > 0,
+      ),
+    );
   }
 
-  async joinRouteOffer(offerId: OfferId, pickupLocation: string): Promise<Match> {
+  async joinRouteOffer(
+    offerId: OfferId,
+    pickupLocation: string,
+  ): Promise<Match> {
     this.requireVerifiedActor();
     const offer = this.getOffer(offerId);
-    if (offer.driverId === this.actorId) throw new AnchorCommandError("VALIDATION", "You cannot join your own ride.");
-    if (!this.offerIsEligible(offerId)) throw new AnchorCommandError("NO_SEAT", "That ride no longer has an open seat.");
-    if (!pickupLocation.trim()) throw new AnchorCommandError("VALIDATION", "Add a pickup location.");
+    if (offer.driverId === this.actorId)
+      throw new AnchorCommandError(
+        "VALIDATION",
+        "You cannot join your own ride.",
+      );
+    if (!this.offerIsEligible(offerId))
+      throw new AnchorCommandError(
+        "NO_SEAT",
+        "That ride no longer has an open seat.",
+      );
+    if (!pickupLocation.trim())
+      throw new AnchorCommandError("VALIDATION", "Add a pickup location.");
     const request = await this.createAnchorRequest({
       pickupZone: offer.originZone,
       pickupLocation: pickupLocation.trim(),
@@ -130,7 +172,7 @@ export class DemoAnchorClient implements AnchorClient {
       destinationLocation: offer.destinationLocation,
       arriveBy: offer.departureEnd,
       flexibilityMinutes: 15,
-      preferences: offer.preferenceTags
+      preferences: offer.preferenceTags,
     });
     const match: Match = {
       id: `match-${randomId()}` as MatchId,
@@ -139,20 +181,32 @@ export class DemoAnchorClient implements AnchorClient {
       state: "confirmed",
       arrivalSlackMinutes: 15,
       detourMinutes: offer.maxDetourMinutes,
-      explanation: [{ kind: "detour", text: `${offer.maxDetourMinutes}-minute maximum detour.` }],
-      expiresAt: fixtureExpiry
+      explanation: [
+        {
+          kind: "detour",
+          text: `${offer.maxDetourMinutes}-minute maximum detour.`,
+        },
+      ],
+      expiresAt: fixtureExpiry,
     };
     offer.seatsOpen -= 1;
     if (offer.seatsOpen === 0) offer.status = "full";
     request.status = "confirmed";
     this.state.matches.push(match);
-    this.state.pickupReveals.push({ matchId: match.id, publicLandmark: `${offer.originLocation} public entrance`, visibleAfter: isoNow(), expiresAt: fixtureExpiry });
+    this.state.pickupReveals.push({
+      matchId: match.id,
+      publicLandmark: `${offer.originLocation} public entrance`,
+      visibleAfter: isoNow(),
+      expiresAt: fixtureExpiry,
+    });
     this.addEvent(match.id, "rider_accepted");
     this.notify();
     return clone(match);
   }
 
-  async createAnchorRequest(input: CreateAnchorRequestInput): Promise<AnchorRequest> {
+  async createAnchorRequest(
+    input: CreateAnchorRequestInput,
+  ): Promise<AnchorRequest> {
     this.requireVerifiedActor();
     this.validateRequestInput(input);
     const request: AnchorRequest = {
@@ -160,7 +214,7 @@ export class DemoAnchorClient implements AnchorClient {
       id: `request-${randomId()}` as AnchorRequest["id"],
       riderId: this.actorId,
       communityId: this.currentActor.communityId,
-      status: "open"
+      status: "open",
     };
     this.state.requests.push(request);
     this.notify();
@@ -169,18 +223,39 @@ export class DemoAnchorClient implements AnchorClient {
 
   async listCandidates(requestId: AnchorRequest["id"]): Promise<Match[]> {
     const request = this.getRequest(requestId);
-    if (request.riderId !== this.actorId) throw new AnchorCommandError("UNAUTHORIZED", "Only the rider can view their candidates.");
+    if (request.riderId !== this.actorId)
+      throw new AnchorCommandError(
+        "UNAUTHORIZED",
+        "Only the rider can view their candidates.",
+      );
     return clone(
-      this.state.matches.filter((match) => match.requestId === requestId && match.state === "candidate" && this.offerIsEligible(match.offerId))
+      this.state.matches.filter(
+        (match) =>
+          match.requestId === requestId &&
+          match.state === "candidate" &&
+          this.offerIsEligible(match.offerId),
+      ),
     );
   }
 
   async offerSeat(matchId: MatchId): Promise<Match> {
     const match = this.getMatch(matchId);
     const offer = this.getOffer(match.offerId);
-    if (offer.driverId !== this.actorId) throw new AnchorCommandError("UNAUTHORIZED", "Only the driver can offer this seat.");
-    if (match.state !== "candidate") throw new AnchorCommandError("INVALID_STATE", "This candidate can no longer receive an offer.");
-    if (!this.offerIsEligible(offer.id)) throw new AnchorCommandError("NO_SEAT", "This route no longer has an eligible seat.");
+    if (offer.driverId !== this.actorId)
+      throw new AnchorCommandError(
+        "UNAUTHORIZED",
+        "Only the driver can offer this seat.",
+      );
+    if (match.state !== "candidate")
+      throw new AnchorCommandError(
+        "INVALID_STATE",
+        "This candidate can no longer receive an offer.",
+      );
+    if (!this.offerIsEligible(offer.id))
+      throw new AnchorCommandError(
+        "NO_SEAT",
+        "This route no longer has an eligible seat.",
+      );
     match.state = "driver_offered";
     this.addEvent(match.id, "driver_offered");
     this.notify();
@@ -191,9 +266,21 @@ export class DemoAnchorClient implements AnchorClient {
     const match = this.getMatch(matchId);
     const request = this.getRequest(match.requestId);
     const offer = this.getOffer(match.offerId);
-    if (request.riderId !== this.actorId) throw new AnchorCommandError("UNAUTHORIZED", "Only the rider can accept this ride.");
-    if (match.state !== "driver_offered") throw new AnchorCommandError("INVALID_STATE", "The driver has not offered this seat.");
-    if (!this.offerIsEligible(offer.id)) throw new AnchorCommandError("NO_SEAT", "That seat was just taken or is unavailable.");
+    if (request.riderId !== this.actorId)
+      throw new AnchorCommandError(
+        "UNAUTHORIZED",
+        "Only the rider can accept this ride.",
+      );
+    if (match.state !== "driver_offered")
+      throw new AnchorCommandError(
+        "INVALID_STATE",
+        "The driver has not offered this seat.",
+      );
+    if (!this.offerIsEligible(offer.id))
+      throw new AnchorCommandError(
+        "NO_SEAT",
+        "That seat was just taken or is unavailable.",
+      );
     offer.seatsOpen -= 1;
     if (offer.seatsOpen === 0) offer.status = "full";
     match.state = "confirmed";
@@ -205,39 +292,73 @@ export class DemoAnchorClient implements AnchorClient {
 
   async declineMatch(matchId: MatchId): Promise<Match> {
     const match = this.getMatch(matchId);
-    if (!this.isParticipant(match)) throw new AnchorCommandError("UNAUTHORIZED", "Only a match participant can decline.");
+    if (!this.isParticipant(match))
+      throw new AnchorCommandError(
+        "UNAUTHORIZED",
+        "Only a match participant can decline.",
+      );
     if (match.state !== "candidate" && match.state !== "driver_offered") {
-      throw new AnchorCommandError("INVALID_STATE", "This match can no longer be declined.");
+      throw new AnchorCommandError(
+        "INVALID_STATE",
+        "This match can no longer be declined.",
+      );
     }
     match.state = "declined";
     this.notify();
     return clone(match);
   }
 
-  async cancelMatch(matchId: MatchId, _reason: CancellationReason): Promise<CancelResult> {
+  async cancelMatch(
+    matchId: MatchId,
+    _reason: CancellationReason,
+  ): Promise<CancelResult> {
     const match = this.getMatch(matchId);
-    if (!this.isParticipant(match)) throw new AnchorCommandError("UNAUTHORIZED", "Only a match participant can cancel.");
+    if (!this.isParticipant(match))
+      throw new AnchorCommandError(
+        "UNAUTHORIZED",
+        "Only a match participant can cancel.",
+      );
     if (match.state !== "confirmed" && match.state !== "in_progress") {
-      throw new AnchorCommandError("INVALID_STATE", "Only an active ride can be cancelled.");
+      throw new AnchorCommandError(
+        "INVALID_STATE",
+        "Only an active ride can be cancelled.",
+      );
     }
     match.state = "cancelled";
     const request = this.getRequest(match.requestId);
     request.status = "rescue_pending";
     const cancelledOffer = this.getOffer(match.offerId);
-    cancelledOffer.status = "cancelled";
+    cancelledOffer.seatsOpen += 1;
+    if (cancelledOffer.status === "full") cancelledOffer.status = "active";
     this.addEvent(match.id, "cancelled");
     const rescueCandidates = this.state.matches.filter(
-      (candidate) => candidate.requestId === match.requestId && candidate.id !== match.id && candidate.state === "candidate" && this.offerIsEligible(candidate.offerId)
+      (candidate) =>
+        candidate.requestId === match.requestId &&
+        candidate.id !== match.id &&
+        candidate.state === "candidate" &&
+        this.offerIsEligible(candidate.offerId),
     );
     request.status = rescueCandidates.length ? "matched" : "no_match";
     this.notify();
-    return { match: clone(match), rescueCandidates: clone(rescueCandidates), rescueStatus: rescueCandidates.length ? "rematched" : "no_match" };
+    return {
+      match: clone(match),
+      rescueCandidates: clone(rescueCandidates),
+      rescueStatus: rescueCandidates.length ? "rematched" : "no_match",
+    };
   }
 
   async checkIn(matchId: MatchId): Promise<Match> {
     const match = this.getMatch(matchId);
-    if (!this.isParticipant(match)) throw new AnchorCommandError("UNAUTHORIZED", "Only a confirmed participant can check in.");
-    if (match.state !== "confirmed" && match.state !== "in_progress") throw new AnchorCommandError("INVALID_STATE", "This ride is not ready for check-in.");
+    if (!this.isParticipant(match))
+      throw new AnchorCommandError(
+        "UNAUTHORIZED",
+        "Only a confirmed participant can check in.",
+      );
+    if (match.state !== "confirmed" && match.state !== "in_progress")
+      throw new AnchorCommandError(
+        "INVALID_STATE",
+        "This ride is not ready for check-in.",
+      );
     match.state = "in_progress";
     this.addEvent(match.id, "checked_in");
     this.notify();
@@ -246,8 +367,16 @@ export class DemoAnchorClient implements AnchorClient {
 
   async completeMatch(matchId: MatchId): Promise<Match> {
     const match = this.getMatch(matchId);
-    if (!this.isParticipant(match)) throw new AnchorCommandError("UNAUTHORIZED", "Only a participant can complete this ride.");
-    if (match.state !== "in_progress") throw new AnchorCommandError("INVALID_STATE", "Check in before completing this ride.");
+    if (!this.isParticipant(match))
+      throw new AnchorCommandError(
+        "UNAUTHORIZED",
+        "Only a participant can complete this ride.",
+      );
+    if (match.state !== "in_progress")
+      throw new AnchorCommandError(
+        "INVALID_STATE",
+        "Check in before completing this ride.",
+      );
     match.state = "completed";
     this.getRequest(match.requestId).status = "completed";
     this.addEvent(match.id, "completed");
@@ -257,30 +386,49 @@ export class DemoAnchorClient implements AnchorClient {
 
   async getPickupReveal(matchId: MatchId): Promise<PickupReveal | null> {
     const match = this.getMatch(matchId);
-    if (!this.isParticipant(match)) throw new AnchorCommandError("UNAUTHORIZED", "Only match participants can view pickup details.");
-    if (match.state !== "confirmed" && match.state !== "in_progress") return null;
-    const reveal = this.state.pickupReveals.find((item) => item.matchId === matchId);
+    if (!this.isParticipant(match))
+      throw new AnchorCommandError(
+        "UNAUTHORIZED",
+        "Only match participants can view pickup details.",
+      );
+    if (match.state !== "confirmed" && match.state !== "in_progress")
+      return null;
+    const reveal = this.state.pickupReveals.find(
+      (item) => item.matchId === matchId,
+    );
     if (!reveal || new Date(reveal.expiresAt) <= new Date()) return null;
     return clone(reveal);
   }
 
-  async createSafetyReport(matchId: MatchId, _category: SafetyCategory): Promise<ReportReceipt> {
+  async createSafetyReport(
+    matchId: MatchId,
+    _category: SafetyCategory,
+  ): Promise<ReportReceipt> {
     const match = this.getMatch(matchId);
-    if (!this.isParticipant(match)) throw new AnchorCommandError("UNAUTHORIZED", "Only a participant can report a match.");
+    if (!this.isParticipant(match))
+      throw new AnchorCommandError(
+        "UNAUTHORIZED",
+        "Only a participant can report a match.",
+      );
     this.addEvent(match.id, "reported");
     this.notify();
-    return { id: `report-${randomId()}` as ReportReceipt["id"], createdAt: isoNow() };
+    return {
+      id: `report-${randomId()}` as ReportReceipt["id"],
+      createdAt: isoNow(),
+    };
   }
 
   private getOffer(id: RouteOffer["id"]): RouteOffer {
     const offer = this.state.offers.find((item) => item.id === id);
-    if (!offer) throw new AnchorCommandError("NOT_FOUND", "Route offer not found.");
+    if (!offer)
+      throw new AnchorCommandError("NOT_FOUND", "Route offer not found.");
     return offer;
   }
 
   private getRequest(id: AnchorRequest["id"]): AnchorRequest {
     const request = this.state.requests.find((item) => item.id === id);
-    if (!request) throw new AnchorCommandError("NOT_FOUND", "Anchor request not found.");
+    if (!request)
+      throw new AnchorCommandError("NOT_FOUND", "Anchor request not found.");
     return request;
   }
 
@@ -303,40 +451,94 @@ export class DemoAnchorClient implements AnchorClient {
 
   private requireVerifiedActor(): void {
     if (this.currentActor.verificationState !== "demo_verified") {
-      throw new AnchorCommandError("UNAUTHORIZED", "A verified student session is required.");
+      throw new AnchorCommandError(
+        "UNAUTHORIZED",
+        "A verified student session is required.",
+      );
     }
   }
 
   private validateOfferInput(input: CreateRouteOfferInput): void {
     if (!input.originLocation.trim() || !input.destinationLocation.trim()) {
-      throw new AnchorCommandError("VALIDATION", "Add a pickup and destination location.");
+      throw new AnchorCommandError(
+        "VALIDATION",
+        "Add a pickup and destination location.",
+      );
     }
-    if (!isZone(input.originZone) || !isZone(input.destinationZone) || input.originZone === input.destinationZone) {
-      throw new AnchorCommandError("VALIDATION", "Choose two different supported route zones.");
+    if (
+      !isZone(input.originZone) ||
+      !isZone(input.destinationZone) ||
+      input.originZone === input.destinationZone
+    ) {
+      throw new AnchorCommandError(
+        "VALIDATION",
+        "Choose two different supported route zones.",
+      );
     }
-    if (!Number.isInteger(input.seatsOpen) || input.seatsOpen < 1 || input.seatsOpen > 4) {
-      throw new AnchorCommandError("VALIDATION", "Offer between one and four seats.");
+    if (
+      !Number.isInteger(input.seatsOpen) ||
+      input.seatsOpen < 1 ||
+      input.seatsOpen > 4
+    ) {
+      throw new AnchorCommandError(
+        "VALIDATION",
+        "Offer between one and four seats.",
+      );
     }
-    if (!Number.isInteger(input.maxDetourMinutes) || input.maxDetourMinutes < 0 || input.maxDetourMinutes > 20) {
-      throw new AnchorCommandError("VALIDATION", "Maximum detour must be between 0 and 20 minutes.");
+    if (
+      !Number.isInteger(input.maxDetourMinutes) ||
+      input.maxDetourMinutes < 0 ||
+      input.maxDetourMinutes > 20
+    ) {
+      throw new AnchorCommandError(
+        "VALIDATION",
+        "Maximum detour must be between 0 and 20 minutes.",
+      );
     }
   }
 
   private validateRequestInput(input: CreateAnchorRequestInput): void {
     if (!input.pickupLocation.trim() || !input.destinationLocation.trim()) {
-      throw new AnchorCommandError("VALIDATION", "Add a pickup and destination location.");
+      throw new AnchorCommandError(
+        "VALIDATION",
+        "Add a pickup and destination location.",
+      );
     }
-    if (!isZone(input.pickupZone) || !isZone(input.destinationZone) || input.pickupZone === input.destinationZone) {
-      throw new AnchorCommandError("VALIDATION", "Choose two different supported request zones.");
+    if (
+      !isZone(input.pickupZone) ||
+      !isZone(input.destinationZone) ||
+      input.pickupZone === input.destinationZone
+    ) {
+      throw new AnchorCommandError(
+        "VALIDATION",
+        "Choose two different supported request zones.",
+      );
     }
-    if (!Number.isInteger(input.flexibilityMinutes) || input.flexibilityMinutes < 0 || input.flexibilityMinutes > 30) {
-      throw new AnchorCommandError("VALIDATION", "Flexibility must be between 0 and 30 minutes.");
+    if (
+      !Number.isInteger(input.flexibilityMinutes) ||
+      input.flexibilityMinutes < 0 ||
+      input.flexibilityMinutes > 30
+    ) {
+      throw new AnchorCommandError(
+        "VALIDATION",
+        "Flexibility must be between 0 and 30 minutes.",
+      );
     }
-    if (Number.isNaN(Date.parse(input.arriveBy))) throw new AnchorCommandError("VALIDATION", "Enter a valid arrive-by time.");
+    if (Number.isNaN(Date.parse(input.arriveBy)))
+      throw new AnchorCommandError(
+        "VALIDATION",
+        "Enter a valid arrive-by time.",
+      );
   }
 
   private addEvent(matchId: MatchId, type: MatchEvent["type"]): void {
-    this.state.events.push({ id: randomId(), matchId, actorId: this.actorId, type, createdAt: isoNow() });
+    this.state.events.push({
+      id: randomId(),
+      matchId,
+      actorId: this.actorId,
+      type,
+      createdAt: isoNow(),
+    });
   }
 
   private notify(): void {
@@ -345,4 +547,10 @@ export class DemoAnchorClient implements AnchorClient {
 }
 
 export const demoClient = new DemoAnchorClient();
-export const demoIds = { JORDAN_ID, JORDAN_REQUEST_ID, MAYA_MATCH_ID, SAM_MATCH_ID, DEMO_COMMUNITY_ID };
+export const demoIds = {
+  JORDAN_ID,
+  JORDAN_REQUEST_ID,
+  MAYA_MATCH_ID,
+  SAM_MATCH_ID,
+  DEMO_COMMUNITY_ID,
+};
