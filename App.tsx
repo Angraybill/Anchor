@@ -21,17 +21,22 @@ import {
   type ZoneId,
 } from "./src/lib/contracts";
 import {
+  createPrivateRideRequest,
   joinRide,
   listOpenRides,
+  listPublicRideRequests,
   listMyRides,
+  markRequestFulfilled,
+  offerRideForRequest,
   postCurrentRide,
   type JoinedRide,
+  type PublicRideRequest,
 } from "./src/lib/supabase-api";
 import { supabase, type SupabaseDatabase } from "./src/lib/supabase";
 import Landing from "./src/screens/Landing";
 import ProfileSetup, { type StudentProfile } from "./src/screens/ProfileSetup";
 
-type Tab = "home" | "find" | "plan" | "profile";
+type Tab = "home" | "find" | "requests" | "plan" | "profile";
 type OfferCardData = {
   id: OfferId;
   driverId?: StudentId;
@@ -115,6 +120,7 @@ export default function App() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileResolved, setProfileResolved] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
+  const [authUserId, setAuthUserId] = useState("");
   const [editingProfile, setEditingProfile] = useState(false);
   const [, refresh] = useState(0);
   const [tab, setTab] = useState<Tab>("home");
@@ -122,6 +128,8 @@ export default function App() {
     "PolyPassengers is ready for your next trip.",
   );
   const [refreshing, setRefreshing] = useState(false);
+  const [requestingRide, setRequestingRide] = useState(false);
+  const [offeringForRequest, setOfferingForRequest] = useState<PublicRideRequest | null>(null);
   const [requestId, setRequestId] = useState("request-jordan-clinic");
   const [liveOffers, setLiveOffers] = useState<
     SupabaseDatabase["public"]["Tables"]["rides"]["Row"][]
@@ -130,6 +138,7 @@ export default function App() {
     offered: LiveRide[];
     joined: JoinedRide[];
   }>({ offered: [], joined: [] });
+  const [publicRequests, setPublicRequests] = useState<PublicRideRequest[]>([]);
   const liveMode = Boolean(supabase);
   useEffect(
     () => demoClient.subscribe(() => refresh((value) => value + 1)),
@@ -138,16 +147,21 @@ export default function App() {
   const loadLiveRides = useCallback(async () => {
     if (!supabase || !authenticated) return;
     try {
-      const [openRides, myRides] = await Promise.all([
+      const [openRides, myRides, requests] = await Promise.all([
         listOpenRides(),
         listMyRides(),
+        listPublicRideRequests(),
       ]);
-      setLiveOffers(openRides);
-      setLiveMyRides(myRides);
-    } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Could not load rides.",
+      const joinedRideIds = new Set(
+        myRides.joined.map((joined) => joined.ride.id),
       );
+      setLiveOffers(
+        openRides.filter((ride) => !joinedRideIds.has(ride.id)),
+      );
+      setLiveMyRides(myRides);
+      setPublicRequests(requests);
+    } catch (error) {
+      setMessage(errorMessage(error, "Could not load rides."));
     }
   }, [authenticated]);
   useEffect(() => {
@@ -172,8 +186,10 @@ export default function App() {
       if (error || !data.user) {
         setAuthenticated(false);
         setProfile(null);
+        setAuthUserId("");
       } else {
         setAuthEmail(data.user.email ?? "");
+        setAuthUserId(data.user.id);
         setProfile(savedProfileFromUser(data.user));
       }
       setProfileLoading(false);
@@ -282,20 +298,35 @@ export default function App() {
   async function createRequest(
     pickupLocation: string,
     destinationLocation: string,
+    arriveBy: Date,
   ) {
     try {
-      const request = await demoClient.createAnchorRequest({
-        pickupZone: zoneForLocation(pickupLocation, "north-campus"),
-        pickupLocation: pickupLocation.trim(),
-        destinationZone: zoneForLocation(destinationLocation, "downtown"),
-        destinationLocation: destinationLocation.trim(),
-        arriveBy: "2026-09-06T07:45:00-07:00",
-        flexibilityMinutes: 15,
-        preferences: ["quiet_ride"],
-      });
-      setRequestId(request.id);
-      setTab("home");
-      setMessage(`Request posted for ${request.destinationLocation}.`);
+      const pickupZone = zoneForLocation(pickupLocation, "north-campus");
+      const destinationZone = zoneForLocation(destinationLocation, "downtown");
+      if (liveMode) {
+        await createPrivateRideRequest({
+          pickupZone,
+          destinationZone,
+          pickupLabel: pickupLocation.trim(),
+          destinationLabel: destinationLocation.trim(),
+          arriveBy: arriveBy.toISOString(),
+        });
+      } else {
+        const request = await demoClient.createAnchorRequest({
+          pickupZone,
+          pickupLocation: pickupLocation.trim(),
+          destinationZone,
+          destinationLocation: destinationLocation.trim(),
+          arriveBy: arriveBy.toISOString(),
+          flexibilityMinutes: 15,
+          preferences: ["quiet_ride"],
+        });
+        setRequestId(request.id);
+      }
+      setRequestingRide(false);
+      setTab("requests");
+      if (liveMode) await loadLiveRides();
+      setMessage("Your public request is posted. Browse available rides below; a match is never guaranteed.");
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Could not post request.",
@@ -306,13 +337,20 @@ export default function App() {
     try {
       if (liveMode) {
         const ride = await postCurrentRide(input, profile?.displayName);
+        if (offeringForRequest) await offerRideForRequest(offeringForRequest.id, ride.id);
         setLiveMyRides((current) => ({
           ...current,
           offered: [ride, ...current.offered],
         }));
       } else await demoClient.createRouteOffer(input);
+      const requestedTrip = offeringForRequest;
+      setOfferingForRequest(null);
       setTab("find");
-      setMessage("Your ride is posted. Other students can now join it.");
+      setMessage(
+        requestedTrip
+          ? "Your offer is posted for that public request. The requester still chooses whether to join it."
+          : "Your ride is posted. Other students can now join it.",
+      );
     } catch (error) {
       setMessage(errorMessage(error, "Could not post ride:"));
     }
@@ -323,6 +361,7 @@ export default function App() {
         const ride = liveOffers.find((offer) => offer.id === offerId);
         if (!ride) throw new Error("That ride is no longer available.");
         const joinedRide = await joinRide(offerId, ride.origin_location);
+        await markRequestFulfilled(offerId);
         setLiveOffers((current) =>
           current.filter((offer) => offer.id !== offerId),
         );
@@ -345,9 +384,7 @@ export default function App() {
       setTab("home");
       setMessage("You joined the ride. Pickup is set to the listed departure location.");
     } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Could not join this ride.",
-      );
+      setMessage(errorMessage(error, "Could not join this ride."));
     }
   }
 
@@ -417,7 +454,7 @@ export default function App() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          tab === "home" || tab === "find" ? (
+          tab === "home" || tab === "find" || tab === "requests" ? (
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => void refreshRides()}
@@ -458,7 +495,34 @@ export default function App() {
           />
         )}
         {tab === "find" && <Find offers={openOffers} onJoin={joinOffer} />}
-        {tab === "plan" && <OfferRide onPosted={createOffer} />}
+        {tab === "requests" && (
+          requestingRide ? (
+            <RequestRide
+              onCancel={() => setRequestingRide(false)}
+              onSubmit={createRequest}
+            />
+          ) : (
+            <RideRequests
+              requests={liveMode ? publicRequests : []}
+              offers={openOffers}
+              currentUserId={authUserId}
+              onRequest={() => setRequestingRide(true)}
+              onJoin={joinOffer}
+              onOfferToDrive={(request) => {
+                setOfferingForRequest(request);
+                setTab("plan");
+                setMessage("Set your departure time, seats, and cost share to offer this rider a trip.");
+              }}
+            />
+          )
+        )}
+        {tab === "plan" && (
+          <OfferRide
+            onPosted={createOffer}
+            initialOrigin={offeringForRequest?.pickup_label}
+            initialDestination={offeringForRequest?.destination_label}
+          />
+        )}
         {tab === "profile" && (
           <Profile
             profile={displayProfile}
@@ -474,6 +538,7 @@ export default function App() {
               setProfile(null);
               setProfileResolved(false);
               setAuthEmail("");
+              setAuthUserId("");
               setAuthenticated(false);
               setEditingProfile(false);
               setTab("home");
@@ -495,10 +560,19 @@ export default function App() {
           onPress={() => setTab("find")}
         />
         <Nav
+          icon="clipboard-outline"
+          label="Requests"
+          active={tab === "requests"}
+          onPress={() => setTab("requests")}
+        />
+        <Nav
           icon="car"
           label="Offer a ride"
           active={tab === "plan"}
-          onPress={() => setTab("plan")}
+          onPress={() => {
+            setOfferingForRequest(null);
+            setTab("plan");
+          }}
         />
         <Nav
           icon="person"
@@ -650,6 +724,191 @@ function Find({
   );
 }
 
+function RideRequests({
+  requests,
+  offers,
+  currentUserId,
+  onRequest,
+  onJoin,
+  onOfferToDrive,
+}: {
+  requests: PublicRideRequest[];
+  offers: OfferCardData[];
+  currentUserId: string;
+  onRequest: () => void;
+  onJoin: (offerId: OfferId) => void;
+  onOfferToDrive: (request: PublicRideRequest) => void;
+}) {
+  return (
+    <>
+      <View style={styles.pageHeading}>
+        <Text style={styles.pageTitle}>Ride requests</Text>
+        <Text style={styles.subtitle}>Request a ride at a public landmark or offer to drive another student.</Text>
+      </View>
+      <View style={styles.requestPrompt}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.requestPromptTitle}>Need a ride for a specific trip?</Text>
+          <Text style={styles.requestPromptBody}>Post a public request using a broad public landmark.</Text>
+        </View>
+        <Pressable style={styles.requestPromptButton} onPress={onRequest}>
+          <Text style={styles.requestPromptButtonText}>Request a ride</Text>
+        </Pressable>
+      </View>
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Student ride requests</Text>
+        <Text style={styles.seeAll}>Public areas only</Text>
+      </View>
+      {requests.map((request) => (
+        <PublicRequestCard
+          key={request.id}
+          request={request}
+          offeredRide={offers.find((offer) => offer.id === request.driver_offer_id)}
+          currentUserId={currentUserId}
+          onJoin={onJoin}
+          onOfferToDrive={onOfferToDrive}
+        />
+      ))}
+      {requests.length === 0 && <Text style={styles.emptySectionText}>No public ride requests yet.</Text>}
+    </>
+  );
+}
+
+function RequestRide({
+  onCancel,
+  onSubmit,
+}: {
+  onCancel: () => void;
+  onSubmit: (pickupLocation: string, destinationLocation: string, arriveBy: Date) => Promise<void>;
+}) {
+  const [pickupLocation, setPickupLocation] = useState("");
+  const [destinationLocation, setDestinationLocation] = useState("");
+  const [arriveBy, setArriveBy] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 1);
+    date.setHours(8, 0, 0, 0);
+    return date;
+  });
+  const [saving, setSaving] = useState(false);
+  const canSubmit = Boolean(pickupLocation.trim() && destinationLocation.trim());
+
+  async function submit() {
+    if (!canSubmit || saving) return;
+    setSaving(true);
+    try {
+      await onSubmit(pickupLocation, destinationLocation, arriveBy);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <View style={styles.pageHeading}>
+        <Text style={styles.pageTitle}>Request a ride</Text>
+        <Text style={styles.subtitle}>This post is visible to signed-in Cal Poly students. Use a public landmark or broad area only.</Text>
+      </View>
+      <View style={styles.formCard}>
+        <Text style={styles.fieldLabel}>Public pickup landmark or broad area</Text>
+        <TextInput
+          value={pickupLocation}
+          onChangeText={setPickupLocation}
+          placeholder="e.g. North Campus, NoMo"
+          placeholderTextColor="#9BA19B"
+          style={styles.input}
+        />
+        <Text style={styles.fieldLabel}>Destination</Text>
+        <TextInput
+          value={destinationLocation}
+          onChangeText={setDestinationLocation}
+          placeholder="e.g. Downtown SLO, Airport"
+          placeholderTextColor="#9BA19B"
+          style={styles.input}
+        />
+        <Text style={styles.fieldLabel}>When do you need to arrive?</Text>
+        <View style={styles.timePickerContainer}>
+          <DateTimePicker
+            value={arriveBy}
+            mode="datetime"
+            display="spinner"
+            onChange={(_, selectedDate) => selectedDate && setArriveBy(selectedDate)}
+          />
+        </View>
+        <Text style={styles.helper}>This will be public to signed-in students. Do not enter a home address, phone number, or live location. A ride is never guaranteed or automatically assigned.</Text>
+        <View style={styles.cardActions}>
+          <Pressable style={styles.outlineButton} onPress={onCancel}>
+            <Text style={styles.outlineText}>Back</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.darkButtonSmall, (!canSubmit || saving) && styles.postButtonDisabled]}
+            disabled={!canSubmit || saving}
+            onPress={() => void submit()}
+          >
+            <Text style={styles.darkButtonText}>{saving ? "Posting…" : "Post public request"}</Text>
+          </Pressable>
+        </View>
+      </View>
+    </>
+  );
+}
+
+function PublicRequestCard({
+  request,
+  offeredRide,
+  currentUserId,
+  onJoin,
+  onOfferToDrive,
+}: {
+  request: PublicRideRequest;
+  offeredRide?: OfferCardData;
+  currentUserId: string;
+  onJoin: (offerId: OfferId) => void;
+  onOfferToDrive: (request: PublicRideRequest) => void;
+}) {
+  const arrival = new Date(request.arrive_by);
+  const isOwnRequest = request.rider_id === currentUserId;
+  return (
+    <View style={styles.matchCard}>
+      <Text style={styles.cardKicker}>{isOwnRequest ? "YOUR RIDE REQUEST" : "RIDE REQUEST • PUBLIC LANDMARK"}</Text>
+      <Text style={styles.cardTitle}>A Cal Poly student needs a ride to {request.destination_label}</Text>
+      <View style={styles.routeLine}>
+        <Text style={styles.routeText}>{request.pickup_label}</Text>
+        <Ionicons name="arrow-forward" size={15} color="#8A8C88" />
+        <Text style={styles.routeText}>{request.destination_label}</Text>
+      </View>
+      <Text style={styles.explanation}>Needs to arrive by {arrival.toLocaleDateString([], { month: "short", day: "numeric" })} at {arrival.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text>
+      <Text style={styles.requestSafety}>No home addresses or contact details are shown.</Text>
+      {isOwnRequest && request.status === "driver_offered" ? (
+        <View style={styles.requestMatchedNotice}>
+          <View style={styles.requestMatchedHeading}>
+            <Ionicons name="checkmark-circle" size={20} color="#28584D" />
+            <Text style={styles.requestMatchedTitle}>A driver offered a ride</Text>
+          </View>
+          {offeredRide ? (
+            <>
+              <Text style={styles.requestMatchedBody}>
+                {offeredRide.driverName} is driving from {offeredRide.originLocation} at {new Date(offeredRide.departureStart).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.
+              </Text>
+              <Pressable style={[styles.darkButtonSmall, styles.requestOfferButton]} onPress={() => onJoin(offeredRide.id)}>
+                <Text style={styles.darkButtonText}>Join this offered ride</Text>
+              </Pressable>
+            </>
+          ) : (
+            <Text style={styles.requestMatchedBody}>A driver has responded. Open Join a ride to review the available offer.</Text>
+          )}
+        </View>
+      ) : isOwnRequest && request.status === "fulfilled" ? (
+        <Text style={styles.requestOwnerNotice}>You joined the driver offer for this request.</Text>
+      ) : isOwnRequest ? (
+        <Text style={styles.requestOwnerNotice}>You cannot offer to drive your own request.</Text>
+      ) : (
+        <Pressable style={[styles.darkButtonSmall, styles.requestOfferButton]} onPress={() => onOfferToDrive(request)}>
+          <Text style={styles.darkButtonText}>Offer to drive</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}
+
 function OpenOfferCard({
   offer,
   onJoin,
@@ -797,11 +1056,15 @@ function MatchCard({
 
 function OfferRide({
   onPosted,
+  initialOrigin = "",
+  initialDestination = "",
 }: {
   onPosted: (input: CreateRouteOfferInput) => void | Promise<void>;
+  initialOrigin?: string;
+  initialDestination?: string;
 }) {
-  const [origin, setOrigin] = useState("");
-  const [destination, setDestination] = useState("");
+  const [origin, setOrigin] = useState(initialOrigin);
+  const [destination, setDestination] = useState(initialDestination);
   const [posting, setPosting] = useState(false);
   const [departureTime, setDepartureTime] = useState(() => {
     const time = new Date();

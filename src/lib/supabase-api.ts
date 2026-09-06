@@ -2,6 +2,8 @@ import { requireSupabase, type SupabaseDatabase } from "./supabase";
 import type { CreateRouteOfferInput } from "./contracts";
 
 type Ride = SupabaseDatabase["public"]["Tables"]["rides"]["Row"];
+type JoinedRideRow =
+  SupabaseDatabase["public"]["Functions"]["list_my_joined_rides"]["Returns"][number];
 
 export type JoinedRide = {
   ride: Ride;
@@ -13,6 +15,17 @@ export type MyRides = {
   offered: Ride[];
   joined: JoinedRide[];
 };
+
+export type PrivateRideRequestInput = {
+  pickupZone: string;
+  destinationZone: string;
+  pickupLabel: string;
+  destinationLabel: string;
+  arriveBy: string;
+};
+
+export type PublicRideRequest =
+  SupabaseDatabase["public"]["Tables"]["ride_requests"]["Row"];
 
 async function requireCurrentUser() {
   const client = requireSupabase();
@@ -73,6 +86,58 @@ export async function joinRide(
   return data as Ride;
 }
 
+export async function createPrivateRideRequest(
+  input: PrivateRideRequestInput,
+): Promise<void> {
+  const { client, user } = await requireCurrentUser();
+  const { error } = await client.from("ride_requests").insert({
+    rider_id: user.id,
+    pickup_zone: input.pickupZone,
+    destination_zone: input.destinationZone,
+    pickup_label: input.pickupLabel,
+    destination_label: input.destinationLabel,
+    arrive_by: input.arriveBy,
+    status: "open",
+    driver_offer_id: null,
+  });
+  if (error) throw error;
+}
+
+export async function listPublicRideRequests(): Promise<PublicRideRequest[]> {
+  const { client, user } = await requireCurrentUser();
+  const { data, error } = await client
+    .from("ride_requests")
+    .select("*")
+    .or(`status.eq.open,rider_id.eq.${user.id}`)
+    .order("arrive_by");
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function offerRideForRequest(
+  requestId: string,
+  rideId: string,
+): Promise<PublicRideRequest> {
+  const { client } = await requireCurrentUser();
+  const { data, error } = await client.rpc("offer_ride_for_request", {
+    target_request_id: requestId,
+    target_ride_id: rideId,
+  });
+  if (error) throw error;
+  return data as PublicRideRequest;
+}
+
+export async function markRequestFulfilled(rideId: string): Promise<void> {
+  const { client, user } = await requireCurrentUser();
+  const { error } = await client
+    .from("ride_requests")
+    .update({ status: "fulfilled" })
+    .eq("rider_id", user.id)
+    .eq("driver_offer_id", rideId)
+    .eq("status", "driver_offered");
+  if (error) throw error;
+}
+
 export async function listMyRides(): Promise<MyRides> {
   const { client, user } = await requireCurrentUser();
   const [offeredResult, joinedResult] = await Promise.all([
@@ -82,27 +147,30 @@ export async function listMyRides(): Promise<MyRides> {
       .eq("driver_id", user.id)
       .in("status", ["active", "full"])
       .order("departure_start"),
-    client
-      .from("ride_passengers")
-      .select("ride_id, pickup_location, joined_at, ride:rides(*)")
-      .eq("rider_id", user.id)
-      .order("joined_at", { ascending: false }),
+    client.rpc("list_my_joined_rides"),
   ]);
 
   if (offeredResult.error) throw offeredResult.error;
   if (joinedResult.error) throw joinedResult.error;
 
-  const joined = (joinedResult.data ?? []).flatMap((row) => {
-    const ride = row.ride as unknown as Ride | null;
-    if (!ride) return [];
-    return [
-      {
-        ride,
-        pickupLocation: row.pickup_location as string,
-        joinedAt: row.joined_at as string,
-      },
-    ];
-  });
+  const joined = ((joinedResult.data ?? []) as JoinedRideRow[]).map((row) => ({
+    ride: {
+      id: row.id,
+      driver_id: row.driver_id,
+      driver_name: row.driver_name,
+      origin_location: row.origin_location,
+      destination_location: row.destination_location,
+      departure_start: row.departure_start,
+      departure_end: row.departure_end,
+      seats_open: row.seats_open,
+      max_detour_minutes: row.max_detour_minutes,
+      status: row.status,
+      created_at: row.created_at,
+      cost_cents: row.cost_cents,
+    },
+    pickupLocation: row.pickup_location,
+    joinedAt: row.joined_at,
+  }));
 
   return {
     offered: (offeredResult.data ?? []) as Ride[],

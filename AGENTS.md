@@ -9,7 +9,7 @@ PolyPassengers helps verified Cal Poly students coordinate voluntary rides to fi
 The core flow is:
 
 1. A driver creates a ride offer with typed pickup and destination names, broad zones, departure time, and open seats.
-2. A rider browses available ride offers and joins one; riders do not publish public ride requests.
+2. A rider can browse available ride offers and join one, or publish a public ride request that names only broad public landmarks/zones and arrival timing.
 3. A public pickup landmark is revealed to the matched participants.
 4. If the driver cancels, the rider can receive a compatible replacement offer.
 5. The rider and driver check in and complete the trip.
@@ -30,9 +30,9 @@ Check iOS and Android layouts, touch targets, contrast, safe areas, and reduced 
 
 ### Person 2 — Driver offers and rider browsing
 
-Own driver ride-offer forms, rider browsing/joining, location suggestions, validation, fixture matching, and related tests.
+Own driver ride-offer forms, public rider requests, rider browsing/joining, location suggestions, validation, fixture matching, and related tests.
 
-Build fields for typed locations, broad zones, departure windows, seats, detour limits, and ride preferences. Show why an open ride fits using departure timing and estimated detour.
+Build fields for typed locations, broad zones, departure windows, seats, detour limits, and ride preferences. Public rider requests must use public landmarks or broad zones only; show why an open ride fits using departure timing and estimated detour.
 
 Reject empty or unsupported zones, past deadlines, invalid time windows, negative flexibility, and invalid seat counts. Use shared client adapters; do not write Supabase tables directly from components.
 

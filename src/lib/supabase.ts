@@ -27,11 +27,55 @@ export type SupabaseDatabase = {
           SupabaseDatabase["public"]["Tables"]["rides"]["Insert"]
         >;
       };
+      ride_requests: {
+        Row: {
+          id: string;
+          rider_id: string;
+          pickup_zone: string;
+          destination_zone: string;
+          pickup_label: string;
+          destination_label: string;
+          arrive_by: string;
+          status: "open" | "driver_offered" | "fulfilled" | "cancelled";
+          driver_offer_id: string | null;
+          created_at: string;
+        };
+        Insert: Omit<
+          SupabaseDatabase["public"]["Tables"]["ride_requests"]["Row"],
+          "id" | "created_at"
+        >;
+        Update: Partial<
+          SupabaseDatabase["public"]["Tables"]["ride_requests"]["Insert"]
+        >;
+      };
     };
     Functions: {
       join_ride: {
         Args: { target_ride_id: string; pickup_location: string };
         Returns: SupabaseDatabase["public"]["Tables"]["rides"]["Row"];
+      };
+      offer_ride_for_request: {
+        Args: { target_request_id: string; target_ride_id: string };
+        Returns: SupabaseDatabase["public"]["Tables"]["ride_requests"]["Row"];
+      };
+      list_my_joined_rides: {
+        Args: Record<PropertyKey, never>;
+        Returns: Array<{
+          id: string;
+          driver_id: string | null;
+          driver_name: string;
+          origin_location: string;
+          destination_location: string;
+          departure_start: string;
+          departure_end: string;
+          seats_open: number;
+          max_detour_minutes: number;
+          status: "active" | "full" | "cancelled" | "expired";
+          created_at: string;
+          cost_cents: number;
+          pickup_location: string;
+          joined_at: string;
+        }>;
       };
     };
   };
