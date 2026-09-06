@@ -93,6 +93,13 @@ export class DemoAnchorClient implements AnchorClient {
     );
   }
 
+  snapshotRequest(requestId: string): AnchorRequest {
+    const request = this.state.requests.find((item) => item.id === requestId);
+    if (!request)
+      throw new AnchorCommandError("NOT_FOUND", "Request not found.");
+    return clone(request);
+  }
+
   snapshotOffers(): RouteOffer[] {
     return clone(this.state.offers);
   }
@@ -195,7 +202,7 @@ export class DemoAnchorClient implements AnchorClient {
     this.state.matches.push(match);
     this.state.pickupReveals.push({
       matchId: match.id,
-      publicLandmark: `${offer.originLocation} public entrance`,
+      publicLandmark: pickupLocation.trim(),
       visibleAfter: isoNow(),
       expiresAt: fixtureExpiry,
     });
@@ -483,6 +490,16 @@ export class DemoAnchorClient implements AnchorClient {
       throw new AnchorCommandError(
         "VALIDATION",
         "Offer between one and four seats.",
+      );
+    }
+    if (
+      !Number.isInteger(input.costCents) ||
+      input.costCents < 0 ||
+      input.costCents > 10000
+    ) {
+      throw new AnchorCommandError(
+        "VALIDATION",
+        "Cost share must be between $0 and $100 per passenger.",
       );
     }
     if (

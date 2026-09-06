@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Pressable,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -19,14 +20,16 @@ import {
   type StudentId,
   type ZoneId,
 } from "./src/lib/contracts";
-import { JORDAN_ID, MAYA_ID, SAM_ID } from "./src/lib/demo-fixtures";
 import {
   joinRide,
   listOpenRides,
+  listMyRides,
   postCurrentRide,
+  type JoinedRide,
 } from "./src/lib/supabase-api";
 import { supabase, type SupabaseDatabase } from "./src/lib/supabase";
 import Landing from "./src/screens/Landing";
+import ProfileSetup, { type StudentProfile } from "./src/screens/ProfileSetup";
 
 type Tab = "home" | "find" | "plan" | "profile";
 type OfferCardData = {
@@ -37,7 +40,10 @@ type OfferCardData = {
   destinationLocation: string;
   departureStart: string;
   seatsOpen: number;
+  costCents: number;
 };
+type LiveRide = SupabaseDatabase["public"]["Tables"]["rides"]["Row"];
+type SavedProfile = StudentProfile;
 const requestId = "request-jordan-clinic";
 const zoneLabel: Record<ZoneId, string> = {
   "north-campus": "North Campus",
@@ -56,41 +62,140 @@ function zoneForLocation(location: string, fallback: ZoneId): ZoneId {
   return fallback;
 }
 
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) {
+    return `${fallback} ${error.message}`;
+  }
+
+  if (typeof error === "object" && error !== null) {
+    const details = error as {
+      message?: unknown;
+      details?: unknown;
+      hint?: unknown;
+      code?: unknown;
+    };
+    const parts = [details.message, details.details, details.hint]
+      .filter(
+        (part): part is string =>
+          typeof part === "string" && part.length > 0,
+      )
+      .join(" ");
+    if (parts) return `${fallback} ${parts}`;
+    if (typeof details.code === "string") return `${fallback} Code: ${details.code}`;
+  }
+
+  return fallback;
+}
+
+function formatCostShare(costCents: number): string {
+  return `Price per passenger: $${(costCents / 100).toFixed(2)}`;
+}
+
+function savedProfileFromUser(user: { email?: string | null; user_metadata?: Record<string, unknown> }): SavedProfile | null {
+  const metadata = user.user_metadata ?? {};
+  const displayName = metadata.display_name;
+  const major = metadata.major;
+  const classYear = metadata.class_year;
+  const rideRole = metadata.ride_role;
+  if (
+    typeof user.email !== "string" ||
+    typeof displayName !== "string" ||
+    typeof major !== "string" ||
+    typeof classYear !== "string" ||
+    (rideRole !== "rider" && rideRole !== "driver" && rideRole !== "both")
+  ) {
+    return null;
+  }
+  return { displayName, email: user.email, major, classYear, rideRole };
+}
+
 export default function App() {
   const [authenticated, setAuthenticated] = useState(false);
+  const [profile, setProfile] = useState<SavedProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileResolved, setProfileResolved] = useState(false);
+  const [authEmail, setAuthEmail] = useState("");
+  const [editingProfile, setEditingProfile] = useState(false);
   const [, refresh] = useState(0);
   const [tab, setTab] = useState<Tab>("home");
   const [message, setMessage] = useState(
-    "PolyPassenger is ready for your next trip.",
+    "PolyPassengers is ready for your next trip.",
   );
+  const [refreshing, setRefreshing] = useState(false);
   const [requestId, setRequestId] = useState("request-jordan-clinic");
   const [liveOffers, setLiveOffers] = useState<
     SupabaseDatabase["public"]["Tables"]["rides"]["Row"][]
   >([]);
+  const [liveMyRides, setLiveMyRides] = useState<{
+    offered: LiveRide[];
+    joined: JoinedRide[];
+  }>({ offered: [], joined: [] });
   const liveMode = Boolean(supabase);
   useEffect(
     () => demoClient.subscribe(() => refresh((value) => value + 1)),
     [],
   );
+  const loadLiveRides = useCallback(async () => {
+    if (!supabase || !authenticated) return;
+    try {
+      const [openRides, myRides] = await Promise.all([
+        listOpenRides(),
+        listMyRides(),
+      ]);
+      setLiveOffers(openRides);
+      setLiveMyRides(myRides);
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Could not load rides.",
+      );
+    }
+  }, [authenticated]);
   useEffect(() => {
-    if (!supabase) return;
-    void (async () => {
-      try {
-        setLiveOffers(await listOpenRides());
-      } catch (error) {
-        setMessage(
-          error instanceof Error ? error.message : "Could not load rides.",
-        );
+    void loadLiveRides();
+  }, [loadLiveRides]);
+
+  async function refreshRides() {
+    setRefreshing(true);
+    try {
+      if (liveMode) await loadLiveRides();
+      else refresh((value) => value + 1);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+  useEffect(() => {
+    if (!authenticated || !supabase) return;
+    let active = true;
+    setProfileLoading(true);
+    void supabase.auth.getUser().then(({ data, error }) => {
+      if (!active) return;
+      if (error || !data.user) {
+        setAuthenticated(false);
+        setProfile(null);
+      } else {
+        setAuthEmail(data.user.email ?? "");
+        setProfile(savedProfileFromUser(data.user));
       }
-    })();
-  }, []);
+      setProfileLoading(false);
+      setProfileResolved(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [authenticated]);
   const actor = demoClient.currentActor;
   const offeredRides = useMemo(
     () => demoClient.snapshotOffers().filter((offer) => offer.driverId === actor.id),
     [actor],
   );
   const matches = useMemo(
-    () => demoClient.snapshotMatches(requestId),
+    () =>
+      demoClient
+        .snapshotMatches(requestId)
+        .filter(
+          (match) =>
+            demoClient.snapshotRequest(match.requestId).riderId === actor.id,
+        ),
     [requestId, actor],
   );
   const demoOffers = useMemo(
@@ -105,6 +210,7 @@ export default function App() {
           destinationLocation: offer.destinationLocation,
           departureStart: offer.departureStart,
           seatsOpen: offer.seatsOpen,
+          costCents: offer.costCents,
         })),
     [actor],
   );
@@ -117,6 +223,7 @@ export default function App() {
         destinationLocation: offer.destination_location,
         departureStart: offer.departure_start,
         seatsOpen: offer.seats_open,
+        costCents: offer.cost_cents,
       }))
     : demoOffers).filter((offer) => offer.driverId !== actor.id);
   const activeMatch = matches.find((match) =>
@@ -198,33 +305,45 @@ export default function App() {
   async function createOffer(input: CreateRouteOfferInput) {
     try {
       if (liveMode) {
-        const ride = await postCurrentRide(input);
-        setLiveOffers((current) => [ride, ...current]);
+        const ride = await postCurrentRide(input, profile?.displayName);
+        setLiveMyRides((current) => ({
+          ...current,
+          offered: [ride, ...current.offered],
+        }));
       } else await demoClient.createRouteOffer(input);
       setTab("find");
       setMessage("Your ride is posted. Other students can now join it.");
     } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Could not post ride.",
-      );
+      setMessage(errorMessage(error, "Could not post ride:"));
     }
   }
   async function joinOffer(offerId: OfferId) {
     try {
       if (liveMode) {
-        await joinRide(offerId, "North Campus Library entrance");
+        const ride = liveOffers.find((offer) => offer.id === offerId);
+        if (!ride) throw new Error("That ride is no longer available.");
+        const joinedRide = await joinRide(offerId, ride.origin_location);
         setLiveOffers((current) =>
           current.filter((offer) => offer.id !== offerId),
         );
+        setLiveMyRides((current) => ({
+          ...current,
+          joined: [
+            {
+              ride: joinedRide,
+              pickupLocation: ride.origin_location,
+              joinedAt: new Date().toISOString(),
+            },
+            ...current.joined.filter((joined) => joined.ride.id !== offerId),
+          ],
+        }));
       } else {
-        const match = await demoClient.joinRouteOffer(
-          offerId,
-          "North Campus Library entrance",
-        );
+        const offer = demoClient.snapshotOffer(offerId);
+        const match = await demoClient.joinRouteOffer(offerId, offer.originLocation);
         setRequestId(match.requestId);
       }
       setTab("home");
-      setMessage("You joined the ride. The public pickup landmark is ready.");
+      setMessage("You joined the ride. Pickup is set to the listed departure location.");
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Could not join this ride.",
@@ -232,9 +351,63 @@ export default function App() {
     }
   }
 
-  const displayName = actor.displayName;
+  const displayName = profile?.displayName ?? actor.displayName;
   if (!authenticated) {
-    return <Landing onAuthenticated={() => setAuthenticated(true)} />;
+    return <Landing onAuthenticated={() => {
+      setProfileResolved(false);
+      setAuthenticated(true);
+    }} />;
+  }
+  if (profileLoading || (supabase && !profileResolved)) {
+    return <SafeAreaView style={styles.safe} />;
+  }
+  const authClient = supabase;
+  async function saveProfile(nextProfile: Omit<SavedProfile, "email">) {
+    if (authClient) {
+      const { data, error } = await authClient.auth.updateUser({
+        data: {
+          display_name: nextProfile.displayName,
+          major: nextProfile.major,
+          class_year: nextProfile.classYear,
+          ride_role: nextProfile.rideRole,
+        },
+      });
+      if (error) throw error;
+      const saved = savedProfileFromUser(data.user);
+      if (!saved) throw new Error("Your profile could not be saved. Please try again.");
+      setProfile(saved);
+    } else {
+      setProfile({
+        ...nextProfile,
+        email: profile?.email ?? authEmail,
+      });
+    }
+    setEditingProfile(false);
+    setMessage("Profile updated.");
+  }
+  if (authClient && !profile) {
+    return <ProfileSetup
+      email={authEmail || "your Cal Poly email"}
+      onSave={saveProfile}
+    />;
+  }
+  const displayProfile: SavedProfile = profile ?? {
+    displayName: actor.displayName,
+    email: authEmail,
+    major: "Not set",
+    classYear: "Not set",
+    rideRole: "both",
+  };
+  if (editingProfile) {
+    return (
+      <ProfileSetup
+        email={displayProfile.email}
+        initialProfile={displayProfile}
+        allowRideRoleEdit={false}
+        onCancel={() => setEditingProfile(false)}
+        onSave={saveProfile}
+      />
+    );
   }
 
   return (
@@ -243,10 +416,19 @@ export default function App() {
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          tab === "home" || tab === "find" ? (
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => void refreshRides()}
+              tintColor="#31594C"
+            />
+          ) : undefined
+        }
       >
         <View style={styles.header}>
           <View>
-            <Text style={styles.eyebrow}>POLYPASSENGER • CAL POLY</Text>
+            <Text style={styles.eyebrow}>POLYPASSENGERS • CAL POLY</Text>
             <Text style={styles.title}>Hey, {displayName}</Text>
             <Text style={styles.subtitle}>
               Make the next commitment easier.
@@ -256,10 +438,20 @@ export default function App() {
             <Text style={styles.avatarText}>{displayName[0]}</Text>
           </View>
         </View>
+        <View style={styles.notice}>
+          <Ionicons name="information-circle-outline" size={18} color="#31594C" />
+          <Text style={styles.noticeText}>{message}</Text>
+        </View>
         {tab === "home" && (
           <Home
-            offeredRides={offeredRides}
-            matches={matches.filter((match) => match.state === "confirmed")}
+            offeredRides={liveMode ? [] : offeredRides}
+            matches={
+              liveMode
+                ? []
+                : matches.filter((match) => match.state === "confirmed")
+            }
+            liveOfferedRides={liveMode ? liveMyRides.offered : []}
+            liveJoinedRides={liveMode ? liveMyRides.joined : []}
             onOffer={offer}
             onAccept={accept}
             onCancel={cancel}
@@ -269,12 +461,22 @@ export default function App() {
         {tab === "plan" && <OfferRide onPosted={createOffer} />}
         {tab === "profile" && (
           <Profile
-            actor={actor}
-            onChange={(id) => {
-              demoClient.setDemoActor(id);
-              setMessage(
-                `Now viewing the ${id.replace("student-", "")} demo session.`,
-              );
+            profile={displayProfile}
+            onEdit={() => setEditingProfile(true)}
+            onLogout={async () => {
+              if (supabase) {
+                const { error } = await supabase.auth.signOut();
+                if (error) {
+                  setMessage(error.message);
+                  return;
+                }
+              }
+              setProfile(null);
+              setProfileResolved(false);
+              setAuthEmail("");
+              setAuthenticated(false);
+              setEditingProfile(false);
+              setTab("home");
             }}
           />
         )}
@@ -312,26 +514,108 @@ export default function App() {
 function Home({
   offeredRides,
   matches,
+  liveOfferedRides,
+  liveJoinedRides,
   onOffer,
   onAccept,
   onCancel,
 }: {
   offeredRides: ReturnType<typeof demoClient.snapshotOffers>;
   matches: Match[];
+  liveOfferedRides: LiveRide[];
+  liveJoinedRides: JoinedRide[];
   onOffer: (match: Match, driverId: StudentId) => void;
   onAccept: (match: Match) => void;
   onCancel: (match: Match) => void;
 }) {
+  const joinedRideCount = matches.length + liveJoinedRides.length;
+  const offeredRideCount = offeredRides.length + liveOfferedRides.length;
+  const totalRideCount = joinedRideCount + offeredRideCount;
+
   return (
     <>
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Your rides</Text>
-        <Text style={styles.seeAll}>{offeredRides.length + matches.length} active</Text>
+        <Text style={styles.sectionTitle}>Current Rides</Text>
+        <Text style={styles.seeAll}>
+          {totalRideCount} active
+        </Text>
       </View>
-      {offeredRides.map((offer) => <OfferedRideCard key={offer.id} offer={offer} />)}
-      {matches.map((match) => <MatchCard key={match.id} match={match} onOffer={onOffer} onAccept={onAccept} onCancel={onCancel} />)}
-      {!offeredRides.length && !matches.length && <View style={styles.empty}><Text style={styles.cardTitle}>No rides yet</Text><Text style={styles.subtitle}>Offer a seat or join an open ride to see it here.</Text></View>}
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Your rides</Text>
+      </View>
+      <Text style={styles.subsectionTitle}>Driving</Text>
+      {offeredRideCount === 0 && (
+        <Text style={styles.emptySectionText}>None</Text>
+      )}
+      {offeredRides.map((offer) => (
+        <OfferedRideCard key={offer.id} offer={offer} />
+      ))}
+      {liveOfferedRides.map((ride) => (
+        <LiveRideCard key={`offered-${ride.id}`} ride={ride} role="offered" />
+      ))}
+
+      <Text style={styles.subsectionTitle}>Passenger</Text>
+      {joinedRideCount === 0 && <Text style={styles.emptySectionText}>None</Text>}
+      {matches.map((match) => (
+        <MatchCard
+          key={match.id}
+          match={match}
+          onOffer={onOffer}
+          onAccept={onAccept}
+          onCancel={onCancel}
+        />
+      ))}
+      {liveJoinedRides.map((joined) => (
+        <LiveRideCard
+          key={`joined-${joined.ride.id}`}
+          ride={joined.ride}
+          role="joined"
+          pickupLocation={joined.pickupLocation}
+        />
+      ))}
+
     </>
+  );
+}
+
+function LiveRideCard({
+  ride,
+  role,
+  pickupLocation,
+}: {
+  ride: LiveRide;
+  role: "offered" | "joined";
+  pickupLocation?: string;
+}) {
+  const departure = new Date(ride.departure_start);
+  return (
+    <View style={styles.matchCard}>
+      <Text style={styles.cardKicker}>
+        {role === "offered" ? "YOUR OFFERED RIDE" : "JOINED RIDE"}
+      </Text>
+      <Text style={styles.cardTitle}>
+        {role === "offered"
+          ? `Driving to ${ride.destination_location}`
+          : `${ride.driver_name} is driving to ${ride.destination_location}`}
+      </Text>
+      <View style={styles.routeLine}>
+        <Text style={styles.routeText}>{ride.origin_location}</Text>
+        <Ionicons name="arrow-forward" size={15} color="#8A8C88" />
+        <Text style={styles.routeText}>{ride.destination_location}</Text>
+      </View>
+      <Text style={styles.explanation}>
+        Leaves {departure.toLocaleDateString([], { month: "short", day: "numeric" })} around {departure.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+      </Text>
+      {role === "offered" ? (
+        <Text style={styles.explanation}>
+          {ride.seats_open} seat{ride.seats_open === 1 ? "" : "s"} available
+        </Text>
+      ) : (
+        <Text style={styles.pickup}>Pickup: {pickupLocation}</Text>
+      )}
+      <Text style={styles.costShare}>{formatCostShare(ride.cost_cents)}</Text>
+    </View>
   );
 }
 
@@ -406,8 +690,9 @@ function OpenOfferCard({
           minute: "2-digit",
         })}{" "}
       </Text>
+      <Text style={styles.costShare}>{formatCostShare(offer.costCents)}</Text>
       <Pressable
-        style={styles.darkButtonSmall}
+        style={[styles.darkButtonSmall, styles.joinButton]}
         onPress={() => onJoin(offer.id)}
       >
         <Text style={styles.darkButtonText}>Join this ride</Text>
@@ -433,6 +718,7 @@ function OfferedRideCard({
       <Text style={styles.explanation}>
         {offer.seatsOpen} seat{offer.seatsOpen === 1 ? "" : "s"} available
       </Text>
+      <Text style={styles.costShare}>{formatCostShare(offer.costCents)}</Text>
     </View>
   );
 }
@@ -476,8 +762,9 @@ function MatchCard({
           ✓ {item.text}
         </Text>
       ))}
+      <Text style={styles.costShare}>{formatCostShare(offer.costCents)}</Text>
       {confirmed && (
-        <Text style={styles.pickup}>Pickup: North Campus Library entrance</Text>
+        <Text style={styles.pickup}>Pickup: {offer.originLocation}</Text>
       )}
       <View style={styles.cardActions}>
         {match.state === "candidate" && (
@@ -511,26 +798,56 @@ function MatchCard({
 function OfferRide({
   onPosted,
 }: {
-  onPosted: (input: CreateRouteOfferInput) => void;
+  onPosted: (input: CreateRouteOfferInput) => void | Promise<void>;
 }) {
-  const [origin, setOrigin] = useState("North Campus");
+  const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
+  const [posting, setPosting] = useState(false);
   const [departureTime, setDepartureTime] = useState(() => {
     const time = new Date();
     time.setDate(time.getDate() + 1);
     time.setHours(6, 55, 0, 0);
     return time;
   });
-  const [seats, setSeats] = useState("1");
+  const [seats, setSeats] = useState("");
+  const [costShare, setCostShare] = useState("");
   const seatCount = Number(seats);
+  const costCents = /^\d+(\.\d{1,2})?$/.test(costShare)
+    ? Math.round(Number(costShare) * 100)
+    : Number.NaN;
   const departureEnd = new Date(departureTime.getTime() + 10 * 60 * 1000);
   const canPost = Boolean(
     origin.trim() &&
       destination.trim() &&
       Number.isInteger(seatCount) &&
       seatCount >= 1 &&
-      seatCount <= 4,
+      seatCount <= 4 &&
+      Number.isInteger(costCents) &&
+      costCents >= 0 &&
+      costCents <= 10000,
   );
+
+  async function submitRide() {
+    if (!canPost || posting) return;
+    setPosting(true);
+    try {
+      await onPosted({
+        originZone: zoneForLocation(origin, "north-campus"),
+        originLocation: origin.trim(),
+        destinationZone: zoneForLocation(destination, "downtown"),
+        destinationLocation: destination.trim(),
+        departureStart: departureTime.toISOString(),
+        departureEnd: departureEnd.toISOString(),
+        seatsOpen: seatCount,
+        costCents,
+        maxDetourMinutes: 0,
+        preferenceTags: ["quiet_ride"],
+      });
+    } finally {
+      setPosting(false);
+    }
+  }
+
   return (
     <>
       <View style={styles.pageHeading}>
@@ -545,7 +862,7 @@ function OfferRide({
         <TextInput
           value={origin}
           onChangeText={setOrigin}
-          placeholder="e.g. my apartment, campus..."
+          placeholder="e.g. Vista Grande, NoMo..."
           placeholderTextColor="#9BA19B"
           style={styles.input}
         />
@@ -553,7 +870,7 @@ function OfferRide({
         <TextInput
           value={destination}
           onChangeText={setDestination}
-          placeholder="e.g. SLO Airport, internship..."
+          placeholder="e.g. Pismo In-N-Out, SLO Airport..."
           placeholderTextColor="#9BA19B"
           style={styles.input}
         />
@@ -602,29 +919,34 @@ function OfferRide({
         <TextInput
           value={seats}
           onChangeText={setSeats}
-          placeholder="1–4"
+          placeholder="e.g. 1, 2..."
           placeholderTextColor="#9BA19B"
           style={styles.input}
           keyboardType="number-pad"
         />
+        <Text style={styles.fieldLabel}>Price Per Passenger</Text>
+        <TextInput
+          value={costShare}
+          onChangeText={setCostShare}
+          placeholder="e.g. 5, 10, 15"
+          placeholderTextColor="#9BA19B"
+          style={styles.input}
+          keyboardType="decimal-pad"
+        />
+        <Text style={styles.helper}>
+          USD only. PolyPassenger does not collect or process payments.
+        </Text>
         <Pressable
-          disabled={!canPost}
-          style={[styles.postButton, !canPost && styles.postButtonDisabled]}
-          onPress={() =>
-            onPosted({
-              originZone: zoneForLocation(origin, "north-campus"),
-              originLocation: origin.trim(),
-              destinationZone: zoneForLocation(destination, "downtown"),
-              destinationLocation: destination.trim(),
-              departureStart: departureTime.toISOString(),
-              departureEnd: departureEnd.toISOString(),
-              seatsOpen: seatCount,
-              maxDetourMinutes: 0,
-              preferenceTags: ["quiet_ride"],
-            })
-          }
+          disabled={!canPost || posting}
+          style={[
+            styles.postButton,
+            (!canPost || posting) && styles.postButtonDisabled,
+          ]}
+          onPress={submitRide}
         >
-          <Text style={styles.postButtonText}>Post open ride</Text>
+          <Text style={styles.postButtonText}>
+            {posting ? "Posting ride…" : "Post open ride"}
+          </Text>
           <Ionicons name="arrow-forward" size={17} color="#FFF" />
         </Pressable>
         <Text style={styles.helper}>
@@ -635,85 +957,64 @@ function OfferRide({
     </>
   );
 }
+
 function Profile({
-  actor,
-  onChange,
+  profile,
+  onEdit,
+  onLogout,
 }: {
-  actor: { id: StudentId; displayName: string };
-  onChange: (id: StudentId) => void;
+  profile: SavedProfile;
+  onEdit: () => void;
+  onLogout: () => Promise<void>;
 }) {
-  const profile = getDemoProfile(actor.id);
-  const demoStudents = [
-    { id: JORDAN_ID, displayName: "Jordan" },
-    { id: MAYA_ID, displayName: "Maya" },
-    { id: SAM_ID, displayName: "Sam" },
-  ];
+  const roleLabel = profile.rideRole === "both" ? "Find and offer rides" : profile.rideRole === "driver" ? "Offer rides" : "Find rides";
 
   return (
     <>
       <View style={styles.pageHeading}>
         <Text style={styles.pageTitle}>Your profile</Text>
-        <Text style={styles.subtitle}>Demo details for the hackathon walkthrough</Text>
+        <Text style={styles.subtitle}>{profile.email}</Text>
       </View>
       <View style={styles.profileCard}>
         <View style={styles.bigAvatar}>
-          <Text style={styles.bigAvatarText}>{actor.displayName[0]}</Text>
+          <Text style={styles.bigAvatarText}>{profile.displayName[0]?.toUpperCase()}</Text>
         </View>
-        <Text style={styles.profileName}>{actor.displayName}</Text>
+        <Text style={styles.profileName}>{profile.displayName}</Text>
         <Text style={styles.verified}>✓ Verified Cal Poly student</Text>
         <View style={styles.profileStats}>
           <ProfileStat icon="school-outline" label="Major" value={profile.major} />
           <ProfileStat icon="calendar-outline" label="Class" value={profile.classYear} />
         </View>
       </View>
+      <Pressable style={styles.editProfileButton} onPress={onEdit} accessibilityRole="button">
+        <Ionicons name="create-outline" size={18} color="#28584D" />
+        <Text style={styles.editProfileButtonText}>Edit profile</Text>
+      </Pressable>
       <View style={styles.profileSectionCard}>
         <View style={styles.profileSectionHeader}>
           <View style={styles.profileSectionIcon}>
-            <Ionicons name={profile.vehicleIcon} size={19} color="#28584D" />
+            <Ionicons name={profile.rideRole === "driver" ? "car-outline" : "navigate-outline"} size={19} color="#28584D" />
           </View>
           <View style={styles.profileSectionCopy}>
-            <Text style={styles.profileSectionEyebrow}>{profile.rideRole}</Text>
-            <Text style={styles.profileSectionTitle}>{profile.vehicleTitle}</Text>
+            <Text style={styles.profileSectionEyebrow}>RIDE PREFERENCE</Text>
+            <Text style={styles.profileSectionTitle}>{roleLabel}</Text>
           </View>
         </View>
-        <Text style={styles.profileSectionBody}>{profile.vehicleDetail}</Text>
-        <View style={styles.preferenceDivider} />
-        <Text style={styles.preferenceLabel}>Ride preferences</Text>
-        <View style={styles.preferenceRow}>
-          {profile.preferences.map((preference) => (
-            <View key={preference} style={styles.preferenceChip}>
-              <Text style={styles.preferenceChipText}>{preference}</Text>
-            </View>
-          ))}
-        </View>
+        <Text style={styles.profileSectionBody}>Your profile is connected to your signed-in Cal Poly email, not a shared demo identity.</Text>
       </View>
       <View style={styles.profilePrivacyCard}>
         <Ionicons name="shield-checkmark-outline" size={19} color="#28584D" />
         <View style={styles.profilePrivacyCopy}>
           <Text style={styles.profilePrivacyTitle}>Privacy by default</Text>
           <Text style={styles.profilePrivacyBody}>
-            PolyPassenger shares only your first name, campus verification, and broad ride details before a ride is accepted.
+            PolyPassengers shares only your first name, campus verification, and broad ride details before a ride is accepted.
           </Text>
         </View>
       </View>
-      <View style={styles.formCard}>
-        <Text style={styles.fieldLabel}>Switch demo session</Text>
-        <Text style={styles.helper}>
-          Preview rider and driver views without editing another student's profile.
-        </Text>
-        {demoStudents.map((student) => (
-          <Pressable
-            key={student.id}
-            style={[styles.choice, student.id === actor.id && styles.choiceActive]}
-            onPress={() => onChange(student.id)}
-          >
-            <Text style={[styles.choiceText, student.id === actor.id && styles.choiceTextActive]}>
-              {student.displayName}
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color="#969993" />
-          </Pressable>
-        ))}
-      </View>
+      <Pressable style={styles.logoutButton} onPress={() => void onLogout()} accessibilityRole="button">
+        <Ionicons name="log-out-outline" size={18} color="#9B5D4E" />
+        <Text style={styles.logoutButtonText}>Log out</Text>
+      </Pressable>
     </>
   );
 }
@@ -735,42 +1036,6 @@ function ProfileStat({
       <Text style={styles.profileStatValue}>{value}</Text>
     </View>
   );
-}
-
-function getDemoProfile(studentId: StudentId) {
-  if (studentId === MAYA_ID) {
-    return {
-      major: "Environmental Engineering",
-      classYear: "2026",
-      rideRole: "DRIVER PROFILE",
-      vehicleTitle: "2019 Subaru Crosstrek",
-      vehicleDetail: "Up to 3 passengers with small bags. Voluntary campus and SLO routes only.",
-      vehicleIcon: "car-sport-outline" as const,
-      preferences: ["Quiet ride", "Small bags", "On-time"],
-    };
-  }
-
-  if (studentId === SAM_ID) {
-    return {
-      major: "Computer Science",
-      classYear: "2027",
-      rideRole: "DRIVER PROFILE",
-      vehicleTitle: "2020 Toyota Corolla",
-      vehicleDetail: "Up to 2 passengers with a small bag. Voluntary campus and SLO routes only.",
-      vehicleIcon: "car-sport-outline" as const,
-      preferences: ["Conversation optional", "Small bags", "On-time"],
-    };
-  }
-
-  return {
-    major: "Biomedical Engineering",
-    classYear: "2027",
-    rideRole: "RIDER PROFILE",
-    vehicleTitle: "No vehicle listed",
-    vehicleDetail: "Looking for dependable rides around campus and San Luis Obispo.",
-    vehicleIcon: "walk-outline" as const,
-    preferences: ["Quiet ride", "On-time", "Backpack only"],
-  };
 }
 
 function Action({

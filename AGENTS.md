@@ -2,9 +2,9 @@
 
 ## Product basics
 
-The product name is PolyPassenger. Use PolyPassenger consistently in user-facing UI and documentation.
+The product name is PolyPassengers. Use PolyPassengers consistently in user-facing UI and documentation.
 
-PolyPassenger helps verified Cal Poly students coordinate voluntary rides to fixed-time commitments when they do not have a car or an existing ride falls through.
+PolyPassengers helps verified Cal Poly students coordinate voluntary rides to fixed-time commitments when they do not have a car or an existing ride falls through.
 
 The core flow is:
 

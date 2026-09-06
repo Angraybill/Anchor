@@ -27,7 +27,7 @@ async function sendCode(email: string, code: string): Promise<string | null> {
         body: JSON.stringify({
           From: from,
           To: email,
-          Subject: "Your PolyPassenger sign-in code",
+          Subject: "Your PolyPassengers sign-in code",
           TextBody: `Your verification code is: ${code}`,
         }),
       });
@@ -45,7 +45,7 @@ async function sendCode(email: string, code: string): Promise<string | null> {
         method: "POST",
         headers: { Authorization: `Bearer ${sendgridKey}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          personalizations: [{ to: [{ email }], subject: "Your PolyPassenger sign-in code" }],
+          personalizations: [{ to: [{ email }], subject: "Your PolyPassengers sign-in code" }],
           from: { email: from },
           content: [{ type: "text/plain", value: `Your verification code is: ${code}` }],
         }),

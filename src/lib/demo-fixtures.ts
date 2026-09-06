@@ -56,6 +56,7 @@ export const demoOffers: RouteOffer[] = [
     departureStart: "2026-09-06T06:55:00-07:00",
     departureEnd: "2026-09-06T07:05:00-07:00",
     seatsOpen: 1,
+    costCents: 300,
     maxDetourMinutes: 8,
     status: "active",
     preferenceTags: ["quiet_ride"],
@@ -71,6 +72,7 @@ export const demoOffers: RouteOffer[] = [
     departureStart: "2026-09-06T07:05:00-07:00",
     departureEnd: "2026-09-06T07:10:00-07:00",
     seatsOpen: 1,
+    costCents: 500,
     maxDetourMinutes: 10,
     status: "active",
     preferenceTags: ["quiet_ride", "small_bag"],
@@ -130,7 +132,7 @@ export const demoMatches: Match[] = [
 
 export const demoPickupReveal: PickupReveal = {
   matchId: MAYA_MATCH_ID,
-  publicLandmark: "North Campus Library entrance",
+  publicLandmark: "North Campus",
   visibleAfter: "2026-09-06T06:45:00-07:00",
   expiresAt: "2026-09-06T08:15:00-07:00",
 };

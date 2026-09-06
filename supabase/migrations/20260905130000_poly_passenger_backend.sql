@@ -1,4 +1,4 @@
--- PolyPassenger backend glue for verified Cal Poly users and driver-posted rides.
+-- PolyPassengers backend glue for verified Cal Poly users and driver-posted rides.
 
 insert into public.communities (name, school_domain)
 select 'Cal Poly', 'calpoly.edu'

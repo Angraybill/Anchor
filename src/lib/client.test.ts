@@ -36,7 +36,7 @@ describe("DemoAnchorClient", () => {
     const reveal = await client.getPickupReveal(demoIds.MAYA_MATCH_ID);
 
     expect(confirmed.state).toBe("confirmed");
-    expect(reveal?.publicLandmark).toBe("North Campus Library entrance");
+    expect(reveal?.publicLandmark).toBe("North Campus");
   });
 
   it("prevents a second acceptance from overbooking the final seat", async () => {
@@ -107,7 +107,7 @@ describe("DemoAnchorClient", () => {
     expect(joined.state).toBe("confirmed");
     expect(offer.seatsOpen).toBe(0);
     await expect(client.getPickupReveal(joined.id)).resolves.toMatchObject({
-      publicLandmark: "North Campus public entrance",
+      publicLandmark: "Cal Poly Rec Center",
     });
   });
 });
