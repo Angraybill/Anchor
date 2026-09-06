@@ -37,3 +37,20 @@ npx supabase db push
 ```
 
 Copy `.env.example` to `.env.local` and add the project URL and public anon key. The current rides MVP uses only the public key; do not put service-role keys or database passwords in the app.
+
+### Email sign-in codes
+
+The landing screen uses Supabase Auth email OTP: it requests an email with
+`signInWithOtp` and exchanges the entered code with `verifyOtp`. Whether
+Supabase sends a clickable magic link or a code is controlled by the **Magic
+Link** email template, rather than the client request.
+
+For hosted Supabase projects, copy the contents of
+`supabase/templates/magic-link-otp.html` into **Authentication > Email
+Templates > Magic Link** in the Supabase dashboard and save it. The template
+must include `{{ .Token }}` and must not include `{{ .ConfirmationURL }}`.
+This sends a code for the app's existing code-entry screen and avoids a
+one-time link being consumed by an email security scanner.
+
+For local Supabase CLI development, the same template is configured through
+`supabase/config.toml`; restart the local Supabase stack after changing it.

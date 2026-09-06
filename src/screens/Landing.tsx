@@ -142,7 +142,7 @@ export default function Landing({ onAuthenticated }: LandingProps) {
 
         {stage === "code" && (
           <>
-          <Text style={styles.help}>Enter the 8-digit code we sent to {email}.</Text>
+          <Text style={styles.help}>Enter the sign-in code we sent to {email}.</Text>
           <TextInput
             style={styles.input}
             placeholder="Enter code"

@@ -1,0 +1,7 @@
+project_id = "poly-passenger"
+
+# Local Supabase Auth configuration. Hosted projects do not read this file;
+# apply the matching template in Dashboard > Authentication > Email Templates.
+[auth.email.template.magic_link]
+subject = "Your PolyPassenger sign-in code"
+content_path = "./templates/magic-link-otp.html"
