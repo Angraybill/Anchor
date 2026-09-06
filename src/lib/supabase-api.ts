@@ -41,7 +41,7 @@ export async function joinRide(
 ): Promise<Ride> {
   const { data, error } = await requireSupabase().rpc("join_ride", {
     target_ride_id: rideId,
-    requested_pickup_location: pickupLocation,
+    pickup_location: pickupLocation,
   });
   if (error) throw error;
   return data as Ride;

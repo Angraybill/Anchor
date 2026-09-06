@@ -8,7 +8,7 @@ It helps students find voluntary rides to important, time-sensitive commitments 
 
 1. A student who is already driving a route posts an open seat and broad locations.
 2. Riders browse the available rides and join one that fits their trip.
-3. The app records the join request and updates the remaining seat count.
+3. The app immediately reserves the seat and updates the remaining seat count; no driver approval is required.
 
 The app lets drivers and riders type recognizable location names, while using broad pickup and destination zones for matching and privacy. It is designed around planned voluntary carpools, not instant rides, payments, or gig driving.
 
@@ -26,7 +26,7 @@ The implementation uses Expo, React Native, TypeScript, and Supabase. When the E
 
 ## Supabase backend
 
-The current backend scope is rides only. It provides a public `rides` table for driver-posted rides, a `ride_join_requests` table for riders joining them, and an atomic `join_ride` database function.
+The current backend scope is rides only. It provides a public `rides` table for driver-posted rides, a `ride_passengers` table for immediate joins, and an atomic `join_ride` database function. Joining a ride is not a request workflow: an available seat is claimed immediately.
 
 After installing the Supabase CLI and creating a project:
 
