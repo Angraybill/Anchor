@@ -88,9 +88,7 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 function formatCostShare(costCents: number): string {
-  return costCents > 0
-    ? `$${(costCents / 100).toFixed(2)} voluntary cost share per passenger`
-    : "No cost share requested";
+  return `Price per passenger: $${(costCents / 100).toFixed(2)}`;
 }
 
 function savedProfileFromUser(user: { email?: string | null; user_metadata?: Record<string, unknown> }): SavedProfile | null {
@@ -812,7 +810,7 @@ function OfferRide({
     return time;
   });
   const [seats, setSeats] = useState("");
-  const [costShare, setCostShare] = useState("0");
+  const [costShare, setCostShare] = useState("");
   const seatCount = Number(seats);
   const costCents = /^\d+(\.\d{1,2})?$/.test(costShare)
     ? Math.round(Number(costShare) * 100)
@@ -926,11 +924,11 @@ function OfferRide({
           style={styles.input}
           keyboardType="number-pad"
         />
-        <Text style={styles.fieldLabel}>Voluntary cost share per passenger</Text>
+        <Text style={styles.fieldLabel}>Price Per Passenger</Text>
         <TextInput
           value={costShare}
           onChangeText={setCostShare}
-          placeholder="0.00"
+          placeholder="e.g. 5, 10, 15"
           placeholderTextColor="#9BA19B"
           style={styles.input}
           keyboardType="decimal-pad"
