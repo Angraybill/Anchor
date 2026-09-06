@@ -580,8 +580,16 @@ function OfferRide({
     time.setHours(6, 55, 0, 0);
     return time;
   });
+  const [seats, setSeats] = useState("1");
+  const seatCount = Number(seats);
   const departureEnd = new Date(departureTime.getTime() + 10 * 60 * 1000);
-  const canPost = Boolean(origin.trim() && destination.trim());
+  const canPost = Boolean(
+    origin.trim() &&
+      destination.trim() &&
+      Number.isInteger(seatCount) &&
+      seatCount >= 1 &&
+      seatCount <= 4,
+  );
   return (
     <>
       <View style={styles.pageHeading}>
@@ -649,6 +657,15 @@ function OfferRide({
         <Text style={styles.helper}>
           Choose the date, hour, minute, and AM/PM for the ride.
         </Text>
+        <Text style={styles.fieldLabel}>Number of passengers</Text>
+        <TextInput
+          value={seats}
+          onChangeText={setSeats}
+          placeholder="1–4"
+          placeholderTextColor="#9BA19B"
+          style={styles.input}
+          keyboardType="number-pad"
+        />
         <Pressable
           disabled={!canPost}
           style={[styles.postButton, !canPost && styles.postButtonDisabled]}
@@ -660,7 +677,7 @@ function OfferRide({
               destinationLocation: destination.trim(),
               departureStart: departureTime.toISOString(),
               departureEnd: departureEnd.toISOString(),
-              seatsOpen: 1,
+              seatsOpen: seatCount,
               maxDetourMinutes: 10,
               preferenceTags: ["quiet_ride"],
             })
