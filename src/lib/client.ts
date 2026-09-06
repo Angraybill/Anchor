@@ -328,7 +328,8 @@ export class DemoAnchorClient implements AnchorClient {
     const request = this.getRequest(match.requestId);
     request.status = "rescue_pending";
     const cancelledOffer = this.getOffer(match.offerId);
-    cancelledOffer.status = "cancelled";
+    cancelledOffer.seatsOpen += 1;
+    if (cancelledOffer.status === "full") cancelledOffer.status = "active";
     this.addEvent(match.id, "cancelled");
     const rescueCandidates = this.state.matches.filter(
       (candidate) =>

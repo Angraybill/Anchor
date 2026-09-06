@@ -75,6 +75,10 @@ describe("DemoAnchorClient", () => {
     expect(rescue.rescueCandidates.map((candidate) => candidate.id)).toEqual([
       demoIds.SAM_MATCH_ID,
     ]);
+    expect(client.snapshotOffer(MAYA_OFFER_ID)).toMatchObject({
+      seatsOpen: 1,
+      status: "active",
+    });
     client.setDemoActor(JORDAN_ID);
     await expect(
       client.getPickupReveal(demoIds.MAYA_MATCH_ID),
