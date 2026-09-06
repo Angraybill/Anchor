@@ -26,7 +26,7 @@ import {
   postCurrentRide,
 } from "./src/lib/supabase-api";
 import { supabase, type SupabaseDatabase } from "./src/lib/supabase";
-import Landing, { signOutCurrentSession } from "./src/screens/Landing";
+import Landing from "./src/screens/Landing";
 
 type Tab = "home" | "find" | "plan" | "profile";
 type OfferCardData = {
@@ -232,17 +232,6 @@ export default function App() {
     }
   }
 
-  async function logOut() {
-    try {
-      if (supabase) await signOutCurrentSession();
-      setAuthenticated(false);
-      setTab("home");
-      setMessage("You have been signed out on this device.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not sign out. Please try again.");
-    }
-  }
-
   const displayName = actor.displayName;
   if (!authenticated) {
     return <Landing onAuthenticated={() => setAuthenticated(true)} />;
@@ -287,7 +276,6 @@ export default function App() {
                 `Now viewing the ${id.replace("student-", "")} demo session.`,
               );
             }}
-            onLogOut={logOut}
           />
         )}
       </ScrollView>
@@ -650,11 +638,9 @@ function OfferRide({
 function Profile({
   actor,
   onChange,
-  onLogOut,
 }: {
   actor: { id: StudentId; displayName: string };
   onChange: (id: StudentId) => void;
-  onLogOut: () => void;
 }) {
   const profile = getDemoProfile(actor.id);
   const demoStudents = [
@@ -728,15 +714,6 @@ function Profile({
           </Pressable>
         ))}
       </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Log out"
-        style={styles.logoutButton}
-        onPress={onLogOut}
-      >
-        <Ionicons name="log-out-outline" size={18} color="#A34E42" />
-        <Text style={styles.logoutText}>Log out on this device</Text>
-      </Pressable>
     </>
   );
 }

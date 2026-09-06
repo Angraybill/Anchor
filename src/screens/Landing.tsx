@@ -25,11 +25,6 @@ function getSupabase() {
   return supabase;
 }
 
-export async function signOutCurrentSession() {
-  const { error } = await getSupabase().auth.signOut();
-  if (error) throw error;
-}
-
 type LandingProps = {
   onAuthenticated: () => void;
 };
