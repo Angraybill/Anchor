@@ -454,7 +454,7 @@ export default function App() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          tab === "home" || tab === "find" ? (
+          tab === "home" || tab === "find" || tab === "requests" ? (
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => void refreshRides()}
