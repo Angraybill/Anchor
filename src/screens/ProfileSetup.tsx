@@ -20,13 +20,24 @@ export type StudentProfile = {
 type ProfileSetupProps = {
   email: string;
   onSave: (profile: Omit<StudentProfile, "email">) => Promise<void>;
+  initialProfile?: Omit<StudentProfile, "email">;
+  onCancel?: () => void;
+  allowRideRoleEdit?: boolean;
 };
 
-export default function ProfileSetup({ email, onSave }: ProfileSetupProps) {
-  const [displayName, setDisplayName] = useState("");
-  const [major, setMajor] = useState("");
-  const [classYear, setClassYear] = useState("");
-  const [rideRole, setRideRole] = useState<StudentProfile["rideRole"]>("both");
+export default function ProfileSetup({
+  email,
+  onSave,
+  initialProfile,
+  onCancel,
+  allowRideRoleEdit = true,
+}: ProfileSetupProps) {
+  const [displayName, setDisplayName] = useState(initialProfile?.displayName ?? "");
+  const [major, setMajor] = useState(initialProfile?.major ?? "");
+  const [classYear, setClassYear] = useState(initialProfile?.classYear ?? "");
+  const [rideRole, setRideRole] = useState<StudentProfile["rideRole"]>(
+    initialProfile?.rideRole ?? "both",
+  );
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -53,10 +64,14 @@ export default function ProfileSetup({ email, onSave }: ProfileSetupProps) {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.eyebrow}>POLYPASSENGER PROFILE</Text>
-        <Text style={styles.title}>Tell your community who you are</Text>
+        <Text style={styles.eyebrow}>POLYPASSENGERS PROFILE</Text>
+        <Text style={styles.title}>
+          {initialProfile ? "Edit your profile" : "Tell your community who you are"}
+        </Text>
         <Text style={styles.subtitle}>
-          This profile belongs to {email} and is linked to this email account.
+          {initialProfile
+            ? "Update the profile details other riders see."
+            : `This profile belongs to ${email} and is linked to this email account.`}
         </Text>
 
         <View style={styles.card}>
@@ -89,31 +104,48 @@ export default function ProfileSetup({ email, onSave }: ProfileSetupProps) {
             maxLength={4}
           />
 
-          <Text style={styles.label}>How will you use PolyPassenger?</Text>
-          <View style={styles.roleRow}>
-            {([
-              ["rider", "Find rides"],
-              ["driver", "Offer rides"],
-              ["both", "Both"],
-            ] as const).map(([value, label]) => (
-              <Pressable
-                key={value}
-                onPress={() => setRideRole(value)}
-                style={[styles.roleButton, rideRole === value && styles.roleButtonActive]}
-              >
-                <Text style={[styles.roleText, rideRole === value && styles.roleTextActive]}>{label}</Text>
-              </Pressable>
-            ))}
-          </View>
+          {allowRideRoleEdit && (
+            <>
+              <Text style={styles.label}>How will you use PolyPassengers?</Text>
+              <View style={styles.roleRow}>
+                {([
+                  ["rider", "Find rides"],
+                  ["driver", "Offer rides"],
+                  ["both", "Both"],
+                ] as const).map(([value, label]) => (
+                  <Pressable
+                    key={value}
+                    onPress={() => setRideRole(value)}
+                    style={[styles.roleButton, rideRole === value && styles.roleButtonActive]}
+                  >
+                    <Text style={[styles.roleText, rideRole === value && styles.roleTextActive]}>{label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
 
-          <Pressable
-            accessibilityRole="button"
-            disabled={!canSave || saving}
-            onPress={saveProfile}
-            style={[styles.button, (!canSave || saving) && styles.buttonDisabled]}
-          >
-            <Text style={styles.buttonText}>{saving ? "Saving…" : "Save profile"}</Text>
-          </Pressable>
+          <View style={styles.actions}>
+            {onCancel && (
+              <Pressable
+                accessibilityRole="button"
+                onPress={onCancel}
+                style={styles.cancelButton}
+              >
+                <Text style={styles.cancelText}>Cancel</Text>
+              </Pressable>
+            )}
+            <Pressable
+              accessibilityRole="button"
+              disabled={!canSave || saving}
+              onPress={saveProfile}
+              style={[styles.button, (!canSave || saving) && styles.buttonDisabled]}
+            >
+              <Text style={styles.buttonText}>
+                {saving ? "Saving…" : initialProfile ? "Save changes" : "Save profile"}
+              </Text>
+            </Pressable>
+          </View>
           {message && <Text style={styles.message}>{message}</Text>}
         </View>
       </ScrollView>
@@ -135,8 +167,11 @@ const styles = StyleSheet.create({
   roleButtonActive: { backgroundColor: "#E2EEE7", borderColor: "#28584D" },
   roleText: { color: "#59625C", fontSize: 12, fontWeight: "800" },
   roleTextActive: { color: "#28584D" },
+  actions: { gap: 10 },
   button: { alignItems: "center", backgroundColor: "#163B35", borderRadius: 18, paddingVertical: 15 },
   buttonDisabled: { opacity: 0.5 },
   buttonText: { color: "#FFFFFF", fontSize: 15, fontWeight: "800" },
+  cancelButton: { alignItems: "center", borderColor: "#D8DED8", borderRadius: 18, borderWidth: 1, paddingVertical: 14 },
+  cancelText: { color: "#59625C", fontSize: 14, fontWeight: "800" },
   message: { color: "#9B5D4E", lineHeight: 19, marginTop: 14, textAlign: "center" },
 });

@@ -117,10 +117,11 @@ export default function App() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileResolved, setProfileResolved] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
+  const [editingProfile, setEditingProfile] = useState(false);
   const [, refresh] = useState(0);
   const [tab, setTab] = useState<Tab>("home");
   const [message, setMessage] = useState(
-    "PolyPassenger is ready for your next trip.",
+    "PolyPassengers is ready for your next trip.",
   );
   const [refreshing, setRefreshing] = useState(false);
   const [requestId, setRequestId] = useState("request-jordan-clinic");
@@ -363,24 +364,52 @@ export default function App() {
     return <SafeAreaView style={styles.safe} />;
   }
   const authClient = supabase;
+  async function saveProfile(nextProfile: Omit<SavedProfile, "email">) {
+    if (authClient) {
+      const { data, error } = await authClient.auth.updateUser({
+        data: {
+          display_name: nextProfile.displayName,
+          major: nextProfile.major,
+          class_year: nextProfile.classYear,
+          ride_role: nextProfile.rideRole,
+        },
+      });
+      if (error) throw error;
+      const saved = savedProfileFromUser(data.user);
+      if (!saved) throw new Error("Your profile could not be saved. Please try again.");
+      setProfile(saved);
+    } else {
+      setProfile({
+        ...nextProfile,
+        email: profile?.email ?? authEmail,
+      });
+    }
+    setEditingProfile(false);
+    setMessage("Profile updated.");
+  }
   if (authClient && !profile) {
     return <ProfileSetup
       email={authEmail || "your Cal Poly email"}
-      onSave={async (nextProfile) => {
-        const { data, error } = await authClient.auth.updateUser({
-          data: {
-            display_name: nextProfile.displayName,
-            major: nextProfile.major,
-            class_year: nextProfile.classYear,
-            ride_role: nextProfile.rideRole,
-          },
-        });
-        if (error) throw error;
-        const saved = savedProfileFromUser(data.user);
-        if (!saved) throw new Error("Your profile could not be saved. Please try again.");
-        setProfile(saved);
-      }}
+      onSave={saveProfile}
     />;
+  }
+  const displayProfile: SavedProfile = profile ?? {
+    displayName: actor.displayName,
+    email: authEmail,
+    major: "Not set",
+    classYear: "Not set",
+    rideRole: "both",
+  };
+  if (editingProfile) {
+    return (
+      <ProfileSetup
+        email={displayProfile.email}
+        initialProfile={displayProfile}
+        allowRideRoleEdit={false}
+        onCancel={() => setEditingProfile(false)}
+        onSave={saveProfile}
+      />
+    );
   }
 
   return (
@@ -401,7 +430,7 @@ export default function App() {
       >
         <View style={styles.header}>
           <View>
-            <Text style={styles.eyebrow}>POLYPASSENGER • CAL POLY</Text>
+            <Text style={styles.eyebrow}>POLYPASSENGERS • CAL POLY</Text>
             <Text style={styles.title}>Hey, {displayName}</Text>
             <Text style={styles.subtitle}>
               Make the next commitment easier.
@@ -434,7 +463,8 @@ export default function App() {
         {tab === "plan" && <OfferRide onPosted={createOffer} />}
         {tab === "profile" && (
           <Profile
-            profile={profile ?? { displayName, email: "", major: "Not set", classYear: "Not set", rideRole: "both" }}
+            profile={displayProfile}
+            onEdit={() => setEditingProfile(true)}
             onLogout={async () => {
               if (supabase) {
                 const { error } = await supabase.auth.signOut();
@@ -447,6 +477,7 @@ export default function App() {
               setProfileResolved(false);
               setAuthEmail("");
               setAuthenticated(false);
+              setEditingProfile(false);
               setTab("home");
             }}
           />
@@ -931,9 +962,11 @@ function OfferRide({
 
 function Profile({
   profile,
+  onEdit,
   onLogout,
 }: {
   profile: SavedProfile;
+  onEdit: () => void;
   onLogout: () => Promise<void>;
 }) {
   const roleLabel = profile.rideRole === "both" ? "Find and offer rides" : profile.rideRole === "driver" ? "Offer rides" : "Find rides";
@@ -955,6 +988,10 @@ function Profile({
           <ProfileStat icon="calendar-outline" label="Class" value={profile.classYear} />
         </View>
       </View>
+      <Pressable style={styles.editProfileButton} onPress={onEdit} accessibilityRole="button">
+        <Ionicons name="create-outline" size={18} color="#28584D" />
+        <Text style={styles.editProfileButtonText}>Edit profile</Text>
+      </Pressable>
       <View style={styles.profileSectionCard}>
         <View style={styles.profileSectionHeader}>
           <View style={styles.profileSectionIcon}>
@@ -972,7 +1009,7 @@ function Profile({
         <View style={styles.profilePrivacyCopy}>
           <Text style={styles.profilePrivacyTitle}>Privacy by default</Text>
           <Text style={styles.profilePrivacyBody}>
-            PolyPassenger shares only your first name, campus verification, and broad ride details before a ride is accepted.
+            PolyPassengers shares only your first name, campus verification, and broad ride details before a ride is accepted.
           </Text>
         </View>
       </View>

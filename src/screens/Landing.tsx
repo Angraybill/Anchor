@@ -74,7 +74,7 @@ export default function Landing({ onAuthenticated }: LandingProps) {
         <View style={styles.successCard}>
           <Image source={require("../../assets/brand/icon-1024.png")} style={styles.successIcon} />
           <Text style={styles.successTitle}>You’re in!</Text>
-          <Text style={styles.successCopy}>Your PolyPassenger session is ready on this device.</Text>
+        <Text style={styles.successCopy}>Your PolyPassengers session is ready on this device.</Text>
           <Pressable onPress={onAuthenticated} style={[styles.button, styles.continueButton]} accessibilityRole="button">
             <Text style={styles.buttonText}>Browse ride offers</Text>
           </Pressable>
