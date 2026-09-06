@@ -26,7 +26,7 @@ import {
   postCurrentRide,
 } from "./src/lib/supabase-api";
 import { supabase, type SupabaseDatabase } from "./src/lib/supabase";
-import Landing from "./src/screens/Landing";
+import Landing, { signOutCurrentSession } from "./src/screens/Landing";
 
 type Tab = "home" | "find" | "plan" | "profile";
 type OfferCardData = {
@@ -232,6 +232,17 @@ export default function App() {
     }
   }
 
+  async function logOut() {
+    try {
+      if (supabase) await signOutCurrentSession();
+      setAuthenticated(false);
+      setTab("home");
+      setMessage("You have been signed out on this device.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not sign out. Please try again.");
+    }
+  }
+
   const displayName = actor.displayName;
   if (!authenticated) {
     return <Landing onAuthenticated={() => setAuthenticated(true)} />;
@@ -276,6 +287,7 @@ export default function App() {
                 `Now viewing the ${id.replace("student-", "")} demo session.`,
               );
             }}
+            onLogOut={logOut}
           />
         )}
       </ScrollView>
@@ -638,10 +650,13 @@ function OfferRide({
 function Profile({
   actor,
   onChange,
+  onLogOut,
 }: {
   actor: { id: StudentId; displayName: string };
   onChange: (id: StudentId) => void;
+  onLogOut: () => void;
 }) {
+  const profile = getDemoProfile(actor.id);
   const demoStudents = [
     { id: JORDAN_ID, displayName: "Jordan" },
     { id: MAYA_ID, displayName: "Maya" },
@@ -652,7 +667,7 @@ function Profile({
     <>
       <View style={styles.pageHeading}>
         <Text style={styles.pageTitle}>Your profile</Text>
-        <Text style={styles.subtitle}>Verified student demo session</Text>
+        <Text style={styles.subtitle}>Demo details for the hackathon walkthrough</Text>
       </View>
       <View style={styles.profileCard}>
         <View style={styles.bigAvatar}>
@@ -660,11 +675,45 @@ function Profile({
         </View>
         <Text style={styles.profileName}>{actor.displayName}</Text>
         <Text style={styles.verified}>✓ Verified Cal Poly student</Text>
+        <View style={styles.profileStats}>
+          <ProfileStat icon="school-outline" label="Major" value={profile.major} />
+          <ProfileStat icon="calendar-outline" label="Class" value={profile.classYear} />
+        </View>
+      </View>
+      <View style={styles.profileSectionCard}>
+        <View style={styles.profileSectionHeader}>
+          <View style={styles.profileSectionIcon}>
+            <Ionicons name={profile.vehicleIcon} size={19} color="#28584D" />
+          </View>
+          <View style={styles.profileSectionCopy}>
+            <Text style={styles.profileSectionEyebrow}>{profile.rideRole}</Text>
+            <Text style={styles.profileSectionTitle}>{profile.vehicleTitle}</Text>
+          </View>
+        </View>
+        <Text style={styles.profileSectionBody}>{profile.vehicleDetail}</Text>
+        <View style={styles.preferenceDivider} />
+        <Text style={styles.preferenceLabel}>Ride preferences</Text>
+        <View style={styles.preferenceRow}>
+          {profile.preferences.map((preference) => (
+            <View key={preference} style={styles.preferenceChip}>
+              <Text style={styles.preferenceChipText}>{preference}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+      <View style={styles.profilePrivacyCard}>
+        <Ionicons name="shield-checkmark-outline" size={19} color="#28584D" />
+        <View style={styles.profilePrivacyCopy}>
+          <Text style={styles.profilePrivacyTitle}>Privacy by default</Text>
+          <Text style={styles.profilePrivacyBody}>
+            PolyPassenger shares only your first name, campus verification, and broad ride details before a ride is accepted.
+          </Text>
+        </View>
       </View>
       <View style={styles.formCard}>
         <Text style={styles.fieldLabel}>Switch demo session</Text>
         <Text style={styles.helper}>
-          Use this to demonstrate the driver and rider sides of the ride flow.
+          Preview rider and driver views without editing another student's profile.
         </Text>
         {demoStudents.map((student) => (
           <Pressable
@@ -679,9 +728,74 @@ function Profile({
           </Pressable>
         ))}
       </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Log out"
+        style={styles.logoutButton}
+        onPress={onLogOut}
+      >
+        <Ionicons name="log-out-outline" size={18} color="#A34E42" />
+        <Text style={styles.logoutText}>Log out on this device</Text>
+      </Pressable>
     </>
   );
 }
+function ProfileStat({
+  icon,
+  label,
+  value,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.profileStat}>
+      <View style={styles.profileStatLabelRow}>
+        <Ionicons name={icon} size={13} color="#B8D0C3" />
+        <Text style={styles.profileStatLabel}>{label}</Text>
+      </View>
+      <Text style={styles.profileStatValue}>{value}</Text>
+    </View>
+  );
+}
+
+function getDemoProfile(studentId: StudentId) {
+  if (studentId === MAYA_ID) {
+    return {
+      major: "Environmental Engineering",
+      classYear: "2026",
+      rideRole: "DRIVER PROFILE",
+      vehicleTitle: "2019 Subaru Crosstrek",
+      vehicleDetail: "Up to 3 passengers with small bags. Voluntary campus and SLO routes only.",
+      vehicleIcon: "car-sport-outline" as const,
+      preferences: ["Quiet ride", "Small bags", "On-time"],
+    };
+  }
+
+  if (studentId === SAM_ID) {
+    return {
+      major: "Computer Science",
+      classYear: "2027",
+      rideRole: "DRIVER PROFILE",
+      vehicleTitle: "2020 Toyota Corolla",
+      vehicleDetail: "Up to 2 passengers with a small bag. Voluntary campus and SLO routes only.",
+      vehicleIcon: "car-sport-outline" as const,
+      preferences: ["Conversation optional", "Small bags", "On-time"],
+    };
+  }
+
+  return {
+    major: "Biomedical Engineering",
+    classYear: "2027",
+    rideRole: "RIDER PROFILE",
+    vehicleTitle: "No vehicle listed",
+    vehicleDetail: "Looking for dependable rides around campus and San Luis Obispo.",
+    vehicleIcon: "walk-outline" as const,
+    preferences: ["Quiet ride", "On-time", "Backpack only"],
+  };
+}
+
 function Action({
   icon,
   title,
