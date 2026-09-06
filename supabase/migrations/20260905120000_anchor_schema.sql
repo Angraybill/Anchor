@@ -1,4 +1,4 @@
--- Anchor MVP schema. All UUIDs are opaque public identifiers.
+-- PolyPassenger MVP schema. All UUIDs are opaque public identifiers.
 create extension if not exists pgcrypto;
 
 create type public.verification_state as enum ('demo_verified', 'pending', 'suspended');

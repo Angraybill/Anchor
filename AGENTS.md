@@ -2,9 +2,9 @@
 
 ## Product basics
 
-The product name is not decided. Use neutral language such as “the app” in UI copy and documentation until the team chooses a name.
+The product name is PolyPassenger. Use PolyPassenger consistently in user-facing UI and documentation.
 
-The app helps Cal Poly students coordinate voluntary rides to fixed-time commitments when they do not have a car or an existing ride falls through.
+PolyPassenger helps verified Cal Poly students coordinate voluntary rides to fixed-time commitments when they do not have a car or an existing ride falls through.
 
 The core flow is:
 

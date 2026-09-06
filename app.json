@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "Campus Ride",
-    "slug": "campus-ride",
+    "name": "PolyPassenger",
+    "slug": "poly-passenger",
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "scheme": "campusride",
+    "scheme": "polypassenger",
     "ios": { "supportsTablet": true },
     "android": { "adaptiveIcon": { "backgroundColor": "#F4F1EB" } },
     "web": { "bundler": "metro" }
