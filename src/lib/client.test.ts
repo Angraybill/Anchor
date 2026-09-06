@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AnchorCommandError } from "./contracts";
 import { DemoAnchorClient, demoIds } from "./client";
-import { JORDAN_ID, MAYA_ID, SAM_ID } from "./demo-fixtures";
+import { JORDAN_ID, MAYA_ID, MAYA_OFFER_ID, SAM_ID } from "./demo-fixtures";
 
 describe("DemoAnchorClient", () => {
   it("returns eligible fixture candidates and excludes the insufficient-slack driver", async () => {
@@ -70,5 +70,19 @@ describe("DemoAnchorClient", () => {
     client.setDemoActor(SAM_ID);
 
     await expect(client.offerSeat(demoIds.MAYA_MATCH_ID)).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
+  it("lets a rider join an open driver offer without publishing a ride request", async () => {
+    const client = new DemoAnchorClient();
+    client.setDemoActor(JORDAN_ID);
+
+    const joined = await client.joinRouteOffer(MAYA_OFFER_ID, "Cal Poly Rec Center");
+    const offer = client.snapshotOffer(MAYA_OFFER_ID);
+
+    expect(joined.state).toBe("confirmed");
+    expect(offer.seatsOpen).toBe(0);
+    await expect(client.getPickupReveal(joined.id)).resolves.toMatchObject({
+      publicLandmark: "North Campus public entrance"
+    });
   });
 });
