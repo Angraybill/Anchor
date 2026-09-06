@@ -1,9 +1,9 @@
 import { requireSupabase, type SupabaseDatabase } from "./supabase";
 import type { CreateRouteOfferInput } from "./contracts";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type Ride = SupabaseDatabase["public"]["Tables"]["rides"]["Row"];
-type JoinedRideRow =
-  SupabaseDatabase["public"]["Functions"]["list_my_joined_rides"]["Returns"][number];
+const JOINED_RIDES_CACHE_KEY = "poly-passenger:joined-rides";
 
 export type JoinedRide = {
   ride: Ride;
@@ -15,6 +15,38 @@ export type MyRides = {
   offered: Ride[];
   joined: JoinedRide[];
 };
+
+async function readJoinedRideCache(): Promise<JoinedRide[]> {
+  try {
+    const value = await AsyncStorage.getItem(JOINED_RIDES_CACHE_KEY);
+    if (!value) return [];
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (entry): entry is JoinedRide =>
+        typeof entry === "object" &&
+        entry !== null &&
+        typeof (entry as JoinedRide).joinedAt === "string" &&
+        typeof (entry as JoinedRide).pickupLocation === "string" &&
+        typeof (entry as JoinedRide).ride?.id === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
+export async function cacheJoinedRide(joinedRide: JoinedRide): Promise<void> {
+  try {
+    const cached = await readJoinedRideCache();
+    const next = [
+      joinedRide,
+      ...cached.filter((entry) => entry.ride.id !== joinedRide.ride.id),
+    ].slice(0, 50);
+    await AsyncStorage.setItem(JOINED_RIDES_CACHE_KEY, JSON.stringify(next));
+  } catch {
+    // A storage failure must not make an accepted ride disappear from the UI.
+  }
+}
 
 async function requireCurrentUser() {
   const client = requireSupabase();
@@ -77,37 +109,32 @@ export async function joinRide(
 
 export async function listMyRides(): Promise<MyRides> {
   const { client, user } = await requireCurrentUser();
-  const [offeredResult, joinedResult] = await Promise.all([
+  const [offeredResult, joinedResult, cachedJoined] = await Promise.all([
     client
       .from("rides")
       .select("*")
       .eq("driver_id", user.id)
       .in("status", ["active", "full"])
       .order("departure_start"),
-    client.rpc("list_my_joined_rides"),
+    client
+      .from("ride_passengers")
+      .select("ride_id, pickup_location, joined_at, ride:rides(*)")
+      .eq("rider_id", user.id)
+      .order("joined_at", { ascending: false }),
+    readJoinedRideCache(),
   ]);
 
   if (offeredResult.error) throw offeredResult.error;
-  if (joinedResult.error) throw joinedResult.error;
-
-  const joined = ((joinedResult.data ?? []) as JoinedRideRow[]).map((row) => ({
-    ride: {
-      id: row.id,
-      driver_id: row.driver_id,
-      driver_name: row.driver_name,
-      origin_location: row.origin_location,
-      destination_location: row.destination_location,
-      departure_start: row.departure_start,
-      departure_end: row.departure_end,
-      seats_open: row.seats_open,
-      max_detour_minutes: row.max_detour_minutes,
-      status: row.status,
-      created_at: row.created_at,
-      cost_cents: row.cost_cents,
-    },
-    pickupLocation: row.pickup_location,
-    joinedAt: row.joined_at,
-  }));
+  const remoteJoined = joinedResult.error
+    ? []
+    : (joinedResult.data ?? []).flatMap((row) => {
+        const ride = row.ride as unknown as Ride | null;
+        return ride
+          ? [{ ride, pickupLocation: row.pickup_location as string, joinedAt: row.joined_at as string }]
+          : [];
+      });
+  const remoteIds = new Set(remoteJoined.map((joined) => joined.ride.id));
+  const joined = [...remoteJoined, ...cachedJoined.filter((joined) => !remoteIds.has(joined.ride.id))];
 
   return {
     offered: (offeredResult.data ?? []) as Ride[],

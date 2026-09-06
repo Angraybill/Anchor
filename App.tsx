@@ -21,6 +21,7 @@ import {
   type ZoneId,
 } from "./src/lib/contracts";
 import {
+  cacheJoinedRide,
   joinRide,
   listOpenRides,
   listMyRides,
@@ -326,14 +327,16 @@ export default function App() {
         setLiveOffers((current) =>
           current.filter((offer) => offer.id !== offerId),
         );
+        const joined = {
+          ride: joinedRide,
+          pickupLocation: ride.origin_location,
+          joinedAt: new Date().toISOString(),
+        };
+        void cacheJoinedRide(joined);
         setLiveMyRides((current) => ({
           ...current,
           joined: [
-            {
-              ride: joinedRide,
-              pickupLocation: ride.origin_location,
-              joinedAt: new Date().toISOString(),
-            },
+            joined,
             ...current.joined.filter((joined) => joined.ride.id !== offerId),
           ],
         }));
