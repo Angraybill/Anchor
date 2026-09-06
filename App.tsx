@@ -21,6 +21,7 @@ import {
   type ZoneId,
 } from "./src/lib/contracts";
 import {
+  createPrivateRideRequest,
   joinRide,
   listOpenRides,
   listMyRides,
@@ -122,6 +123,7 @@ export default function App() {
     "PolyPassengers is ready for your next trip.",
   );
   const [refreshing, setRefreshing] = useState(false);
+  const [requestingRide, setRequestingRide] = useState(false);
   const [requestId, setRequestId] = useState("request-jordan-clinic");
   const [liveOffers, setLiveOffers] = useState<
     SupabaseDatabase["public"]["Tables"]["rides"]["Row"][]
@@ -282,20 +284,34 @@ export default function App() {
   async function createRequest(
     pickupLocation: string,
     destinationLocation: string,
+    arriveBy: Date,
   ) {
     try {
-      const request = await demoClient.createAnchorRequest({
-        pickupZone: zoneForLocation(pickupLocation, "north-campus"),
-        pickupLocation: pickupLocation.trim(),
-        destinationZone: zoneForLocation(destinationLocation, "downtown"),
-        destinationLocation: destinationLocation.trim(),
-        arriveBy: "2026-09-06T07:45:00-07:00",
-        flexibilityMinutes: 15,
-        preferences: ["quiet_ride"],
-      });
-      setRequestId(request.id);
-      setTab("home");
-      setMessage(`Request posted for ${request.destinationLocation}.`);
+      const pickupZone = zoneForLocation(pickupLocation, "north-campus");
+      const destinationZone = zoneForLocation(destinationLocation, "downtown");
+      if (liveMode) {
+        await createPrivateRideRequest({
+          pickupZone,
+          destinationZone,
+          pickupLabel: pickupLocation.trim(),
+          destinationLabel: destinationLocation.trim(),
+          arriveBy: arriveBy.toISOString(),
+        });
+      } else {
+        const request = await demoClient.createAnchorRequest({
+          pickupZone,
+          pickupLocation: pickupLocation.trim(),
+          destinationZone,
+          destinationLocation: destinationLocation.trim(),
+          arriveBy: arriveBy.toISOString(),
+          flexibilityMinutes: 15,
+          preferences: ["quiet_ride"],
+        });
+        setRequestId(request.id);
+      }
+      setRequestingRide(false);
+      setTab("find");
+      setMessage("Your private request is saved. Browse available rides below; a match is never guaranteed.");
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Could not post request.",
@@ -457,7 +473,20 @@ export default function App() {
             onCancel={cancel}
           />
         )}
-        {tab === "find" && <Find offers={openOffers} onJoin={joinOffer} />}
+        {tab === "find" && (
+          requestingRide ? (
+            <RequestRide
+              onCancel={() => setRequestingRide(false)}
+              onSubmit={createRequest}
+            />
+          ) : (
+            <Find
+              offers={openOffers}
+              onJoin={joinOffer}
+              onRequest={() => setRequestingRide(true)}
+            />
+          )
+        )}
         {tab === "plan" && <OfferRide onPosted={createOffer} />}
         {tab === "profile" && (
           <Profile
@@ -622,9 +651,11 @@ function LiveRideCard({
 function Find({
   offers,
   onJoin,
+  onRequest,
 }: {
   offers: OfferCardData[];
   onJoin: (offerId: OfferId) => void;
+  onRequest: () => void;
 }) {
   return (
     <>
@@ -633,6 +664,15 @@ function Find({
         <Text style={styles.subtitle}>
           Browse rides posted by Cal Poly drivers.
         </Text>
+      </View>
+      <View style={styles.requestPrompt}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.requestPromptTitle}>Need a ride for a specific trip?</Text>
+          <Text style={styles.requestPromptBody}>Save a private request, then review available offers.</Text>
+        </View>
+        <Pressable style={styles.requestPromptButton} onPress={onRequest}>
+          <Text style={styles.requestPromptButtonText}>Request a ride</Text>
+        </Pressable>
       </View>
       {offers.map((offer) => (
         <OpenOfferCard key={offer.id} offer={offer} onJoin={onJoin} />
@@ -646,6 +686,84 @@ function Find({
           </Text>
         </View>
       )}
+    </>
+  );
+}
+
+function RequestRide({
+  onCancel,
+  onSubmit,
+}: {
+  onCancel: () => void;
+  onSubmit: (pickupLocation: string, destinationLocation: string, arriveBy: Date) => Promise<void>;
+}) {
+  const [pickupLocation, setPickupLocation] = useState("");
+  const [destinationLocation, setDestinationLocation] = useState("");
+  const [arriveBy, setArriveBy] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 1);
+    date.setHours(8, 0, 0, 0);
+    return date;
+  });
+  const [saving, setSaving] = useState(false);
+  const canSubmit = Boolean(pickupLocation.trim() && destinationLocation.trim());
+
+  async function submit() {
+    if (!canSubmit || saving) return;
+    setSaving(true);
+    try {
+      await onSubmit(pickupLocation, destinationLocation, arriveBy);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <View style={styles.pageHeading}>
+        <Text style={styles.pageTitle}>Request a ride</Text>
+        <Text style={styles.subtitle}>This request is private to your account. It is not visible as a public post.</Text>
+      </View>
+      <View style={styles.formCard}>
+        <Text style={styles.fieldLabel}>Broad starting area</Text>
+        <TextInput
+          value={pickupLocation}
+          onChangeText={setPickupLocation}
+          placeholder="e.g. North Campus, NoMo"
+          placeholderTextColor="#9BA19B"
+          style={styles.input}
+        />
+        <Text style={styles.fieldLabel}>Destination</Text>
+        <TextInput
+          value={destinationLocation}
+          onChangeText={setDestinationLocation}
+          placeholder="e.g. Downtown SLO, Airport"
+          placeholderTextColor="#9BA19B"
+          style={styles.input}
+        />
+        <Text style={styles.fieldLabel}>When do you need to arrive?</Text>
+        <View style={styles.timePickerContainer}>
+          <DateTimePicker
+            value={arriveBy}
+            mode="datetime"
+            display="spinner"
+            onChange={(_, selectedDate) => selectedDate && setArriveBy(selectedDate)}
+          />
+        </View>
+        <Text style={styles.helper}>Use a broad area, not a home address. A ride is never guaranteed or automatically assigned.</Text>
+        <View style={styles.cardActions}>
+          <Pressable style={styles.outlineButton} onPress={onCancel}>
+            <Text style={styles.outlineText}>Back</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.darkButtonSmall, (!canSubmit || saving) && styles.postButtonDisabled]}
+            disabled={!canSubmit || saving}
+            onPress={() => void submit()}
+          >
+            <Text style={styles.darkButtonText}>{saving ? "Saving…" : "Save private request"}</Text>
+          </Pressable>
+        </View>
+      </View>
     </>
   );
 }

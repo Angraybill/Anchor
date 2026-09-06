@@ -14,6 +14,14 @@ export type MyRides = {
   joined: JoinedRide[];
 };
 
+export type PrivateRideRequestInput = {
+  pickupZone: string;
+  destinationZone: string;
+  pickupLabel: string;
+  destinationLabel: string;
+  arriveBy: string;
+};
+
 async function requireCurrentUser() {
   const client = requireSupabase();
   const { data, error } = await client.auth.getUser();
@@ -71,6 +79,22 @@ export async function joinRide(
   });
   if (error) throw error;
   return data as Ride;
+}
+
+export async function createPrivateRideRequest(
+  input: PrivateRideRequestInput,
+): Promise<void> {
+  const { client, user } = await requireCurrentUser();
+  const { error } = await client.from("ride_requests").insert({
+    rider_id: user.id,
+    pickup_zone: input.pickupZone,
+    destination_zone: input.destinationZone,
+    pickup_label: input.pickupLabel,
+    destination_label: input.destinationLabel,
+    arrive_by: input.arriveBy,
+    status: "open",
+  });
+  if (error) throw error;
 }
 
 export async function listMyRides(): Promise<MyRides> {

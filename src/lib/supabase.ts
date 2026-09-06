@@ -27,6 +27,26 @@ export type SupabaseDatabase = {
           SupabaseDatabase["public"]["Tables"]["rides"]["Insert"]
         >;
       };
+      ride_requests: {
+        Row: {
+          id: string;
+          rider_id: string;
+          pickup_zone: string;
+          destination_zone: string;
+          pickup_label: string;
+          destination_label: string;
+          arrive_by: string;
+          status: "open" | "fulfilled" | "cancelled";
+          created_at: string;
+        };
+        Insert: Omit<
+          SupabaseDatabase["public"]["Tables"]["ride_requests"]["Row"],
+          "id" | "created_at"
+        >;
+        Update: Partial<
+          SupabaseDatabase["public"]["Tables"]["ride_requests"]["Insert"]
+        >;
+      };
     };
     Functions: {
       join_ride: {
