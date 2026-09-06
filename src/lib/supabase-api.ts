@@ -96,19 +96,44 @@ export async function createPrivateRideRequest(
     destination_label: input.destinationLabel,
     arrive_by: input.arriveBy,
     status: "open",
+    driver_offer_id: null,
   });
   if (error) throw error;
 }
 
 export async function listPublicRideRequests(): Promise<PublicRideRequest[]> {
-  const { client } = await requireCurrentUser();
+  const { client, user } = await requireCurrentUser();
   const { data, error } = await client
     .from("ride_requests")
     .select("*")
-    .eq("status", "open")
+    .or(`status.eq.open,rider_id.eq.${user.id}`)
     .order("arrive_by");
   if (error) throw error;
   return data ?? [];
+}
+
+export async function offerRideForRequest(
+  requestId: string,
+  rideId: string,
+): Promise<PublicRideRequest> {
+  const { client } = await requireCurrentUser();
+  const { data, error } = await client.rpc("offer_ride_for_request", {
+    target_request_id: requestId,
+    target_ride_id: rideId,
+  });
+  if (error) throw error;
+  return data as PublicRideRequest;
+}
+
+export async function markRequestFulfilled(rideId: string): Promise<void> {
+  const { client, user } = await requireCurrentUser();
+  const { error } = await client
+    .from("ride_requests")
+    .update({ status: "fulfilled" })
+    .eq("rider_id", user.id)
+    .eq("driver_offer_id", rideId)
+    .eq("status", "driver_offered");
+  if (error) throw error;
 }
 
 export async function listMyRides(): Promise<MyRides> {

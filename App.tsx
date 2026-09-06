@@ -26,6 +26,8 @@ import {
   listOpenRides,
   listPublicRideRequests,
   listMyRides,
+  markRequestFulfilled,
+  offerRideForRequest,
   postCurrentRide,
   type JoinedRide,
   type PublicRideRequest,
@@ -332,6 +334,7 @@ export default function App() {
     try {
       if (liveMode) {
         const ride = await postCurrentRide(input, profile?.displayName);
+        if (offeringForRequest) await offerRideForRequest(offeringForRequest.id, ride.id);
         setLiveMyRides((current) => ({
           ...current,
           offered: [ride, ...current.offered],
@@ -355,6 +358,7 @@ export default function App() {
         const ride = liveOffers.find((offer) => offer.id === offerId);
         if (!ride) throw new Error("That ride is no longer available.");
         const joinedRide = await joinRide(offerId, ride.origin_location);
+        await markRequestFulfilled(offerId);
         setLiveOffers((current) =>
           current.filter((offer) => offer.id !== offerId),
         );
@@ -499,8 +503,10 @@ export default function App() {
           ) : (
             <RideRequests
               requests={liveMode ? publicRequests : []}
+              offers={openOffers}
               currentUserId={authUserId}
               onRequest={() => setRequestingRide(true)}
+              onJoin={joinOffer}
               onOfferToDrive={(request) => {
                 setOfferingForRequest(request);
                 setTab("plan");
@@ -719,13 +725,17 @@ function Find({
 
 function RideRequests({
   requests,
+  offers,
   currentUserId,
   onRequest,
+  onJoin,
   onOfferToDrive,
 }: {
   requests: PublicRideRequest[];
+  offers: OfferCardData[];
   currentUserId: string;
   onRequest: () => void;
+  onJoin: (offerId: OfferId) => void;
   onOfferToDrive: (request: PublicRideRequest) => void;
 }) {
   return (
@@ -751,7 +761,9 @@ function RideRequests({
         <PublicRequestCard
           key={request.id}
           request={request}
+          offeredRide={offers.find((offer) => offer.id === request.driver_offer_id)}
           currentUserId={currentUserId}
+          onJoin={onJoin}
           onOfferToDrive={onOfferToDrive}
         />
       ))}
@@ -840,11 +852,15 @@ function RequestRide({
 
 function PublicRequestCard({
   request,
+  offeredRide,
   currentUserId,
+  onJoin,
   onOfferToDrive,
 }: {
   request: PublicRideRequest;
+  offeredRide?: OfferCardData;
   currentUserId: string;
+  onJoin: (offerId: OfferId) => void;
   onOfferToDrive: (request: PublicRideRequest) => void;
 }) {
   const arrival = new Date(request.arrive_by);
@@ -860,7 +876,28 @@ function PublicRequestCard({
       </View>
       <Text style={styles.explanation}>Needs to arrive by {arrival.toLocaleDateString([], { month: "short", day: "numeric" })} at {arrival.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</Text>
       <Text style={styles.requestSafety}>No home addresses or contact details are shown.</Text>
-      {isOwnRequest ? (
+      {isOwnRequest && request.status === "driver_offered" ? (
+        <View style={styles.requestMatchedNotice}>
+          <View style={styles.requestMatchedHeading}>
+            <Ionicons name="checkmark-circle" size={20} color="#28584D" />
+            <Text style={styles.requestMatchedTitle}>A driver offered a ride</Text>
+          </View>
+          {offeredRide ? (
+            <>
+              <Text style={styles.requestMatchedBody}>
+                {offeredRide.driverName} is driving from {offeredRide.originLocation} at {new Date(offeredRide.departureStart).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.
+              </Text>
+              <Pressable style={[styles.darkButtonSmall, styles.requestOfferButton]} onPress={() => onJoin(offeredRide.id)}>
+                <Text style={styles.darkButtonText}>Join this offered ride</Text>
+              </Pressable>
+            </>
+          ) : (
+            <Text style={styles.requestMatchedBody}>A driver has responded. Open Join a ride to review the available offer.</Text>
+          )}
+        </View>
+      ) : isOwnRequest && request.status === "fulfilled" ? (
+        <Text style={styles.requestOwnerNotice}>You joined the driver offer for this request.</Text>
+      ) : isOwnRequest ? (
         <Text style={styles.requestOwnerNotice}>You cannot offer to drive your own request.</Text>
       ) : (
         <Pressable style={[styles.darkButtonSmall, styles.requestOfferButton]} onPress={() => onOfferToDrive(request)}>

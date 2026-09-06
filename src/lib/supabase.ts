@@ -36,7 +36,8 @@ export type SupabaseDatabase = {
           pickup_label: string;
           destination_label: string;
           arrive_by: string;
-          status: "open" | "fulfilled" | "cancelled";
+          status: "open" | "driver_offered" | "fulfilled" | "cancelled";
+          driver_offer_id: string | null;
           created_at: string;
         };
         Insert: Omit<
@@ -52,6 +53,10 @@ export type SupabaseDatabase = {
       join_ride: {
         Args: { target_ride_id: string; pickup_location: string };
         Returns: SupabaseDatabase["public"]["Tables"]["rides"]["Row"];
+      };
+      offer_ride_for_request: {
+        Args: { target_request_id: string; target_ride_id: string };
+        Returns: SupabaseDatabase["public"]["Tables"]["ride_requests"]["Row"];
       };
     };
   };

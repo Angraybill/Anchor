@@ -142,6 +142,10 @@ export const styles = StyleSheet.create({
   requestSafety: { color: "#527063", fontSize: 11, fontWeight: "700", marginTop: 10 },
   requestOfferButton: { marginTop: 14 },
   requestOwnerNotice: { color: "#69736C", fontSize: 11, fontWeight: "700", marginTop: 14 },
+  requestMatchedNotice: { backgroundColor: "#E4F0EA", borderRadius: 14, padding: 13, marginTop: 14 },
+  requestMatchedHeading: { flexDirection: "row", alignItems: "center", gap: 7 },
+  requestMatchedTitle: { color: "#28584D", fontSize: 14, fontWeight: "800" },
+  requestMatchedBody: { color: "#40574E", fontSize: 12, lineHeight: 18, marginTop: 7 },
   pageTitle: {
     color: "#17201E",
     fontSize: 29,
