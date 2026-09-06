@@ -142,7 +142,12 @@ export default function App() {
         listOpenRides(),
         listMyRides(),
       ]);
-      setLiveOffers(openRides);
+      const joinedRideIds = new Set(
+        myRides.joined.map((joined) => joined.ride.id),
+      );
+      setLiveOffers(
+        openRides.filter((ride) => !joinedRideIds.has(ride.id)),
+      );
       setLiveMyRides(myRides);
     } catch (error) {
       setMessage(errorMessage(error, "Could not load rides."));
@@ -343,9 +348,7 @@ export default function App() {
       setTab("home");
       setMessage("You joined the ride. Pickup is set to the listed departure location.");
     } catch (error) {
-      setMessage(
-        error instanceof Error ? error.message : "Could not join this ride.",
-      );
+      setMessage(errorMessage(error, "Could not join this ride."));
     }
   }
 
